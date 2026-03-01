@@ -1,0 +1,20 @@
+{
+    "runtimes": {
+        "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+        }
+    },
+    "default-runtime": "nvidia",
+    "data-root": "{{DOCKER_DATA_ROOT}}",
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "{{DOCKER_LOG_MAX_SIZE}}",
+        "max-file": "{{DOCKER_LOG_MAX_FILES}}"
+    },
+    "storage-driver": "overlay2",
+    "live-restore": true,
+    "default-address-pools": [
+        {"base": "172.17.0.0/12", "size": 24}
+    ]
+}
