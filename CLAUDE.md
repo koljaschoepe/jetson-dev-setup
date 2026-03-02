@@ -17,8 +17,21 @@ Automatisierte Setup-Scripts um ein frisches NVIDIA Jetson Orin Nano Super Dev K
 - ARM64 — nicht alle x86-Pakete/Container verfügbar
 - Docker-Images müssen `linux/arm64` oder multi-arch sein
 - NVMe ist Pflicht für Docker/Swap (SD-Karte zu langsam)
-- JetPack 6.x liefert Docker 27.5.x — Docker 28.x hat Kernel-Probleme
 - NVIDIA Container Runtime vorinstalliert — `--runtime=nvidia` für GPU
+
+## Sicherheits-Konfiguration
+- SSH: Key-Only Auth (`/etc/ssh/sshd_config.d/99-jetson-hardened.conf`)
+- Firewall: UFW aktiv, nur SSH (22) + mDNS (5353) erlaubt
+- fail2ban: sshd-Jail + recidive-Jail (Wiederholungstäter 1 Woche Ban)
+- Automatische Security-Patches via `unattended-upgrades` (Docker/NVIDIA ausgenommen)
+- Netzwerk-Hardening: SYN-Cookies, Reverse-Path-Filter, keine Redirects
+
+## Performance-Tuning
+- Kernel: `vm.swappiness=10`, `vfs_cache_pressure=50`, `dirty_ratio=10`, `min_free_kbytes=65536`
+- OOM-Schutz: SSH (`OOMScoreAdjust=-900`), Docker (`-500`)
+- NVMe: `noatime`-Mount, `none` I/O-Scheduler, wöchentlich TRIM
+- Journald: 200MB Limit, 1 Woche Retention
+- ~39 laufende Services (Desktop/WiFi/Print deaktiviert)
 
 ## Konfiguration
 Alle kundenspezifischen Variablen stehen in `.env` (erstellt aus `.env.example`).
@@ -68,14 +81,19 @@ docker system df              # Speicherverbrauch
 docker compose up -d          # Stack starten
 
 # Power
-sudo nvpmodel -m 3            # 25W Modus (empfohlen 24/7)
-sudo nvpmodel -m 0            # 7W Low-Power
+sudo nvpmodel -m 0            # 15W Standard
+sudo nvpmodel -m 2            # 25W Super-Modus
 sudo jetson_clocks            # Clocks auf Maximum
 
 # Speicher
 df -h /mnt/nvme               # NVMe freier Speicher
 sudo nvme smart-log /dev/nvme0n1  # NVMe Health
 free -h                       # RAM + Swap
+
+# Sicherheit
+sudo ufw status verbose       # Firewall-Status
+sudo fail2ban-client status sshd  # Gebannte IPs
+sudo unattended-upgrades --dry-run  # Ausstehende Security-Patches
 ```
 
 ## Entwicklungs-Workflow
@@ -90,6 +108,11 @@ free -h                       # RAM + Swap
 - `/mnt/nvme/models/` — AI-Modelle (Ollama etc.)
 - `/mnt/nvme/backups/` — Backups
 - `/var/log/jetson-setup/` — Setup-Logs
+- `/var/log/jetson-setup/nvme-health.log` — Wöchentliche NVMe SMART-Daten
+- `/etc/ssh/sshd_config.d/99-jetson-hardened.conf` — SSH-Härtung
+- `/etc/sysctl.d/99-jetson-dev.conf` — Kernel-Parameter
+- `/etc/cron.weekly/nvme-health` — NVMe-Health-Check Cron
+- `/etc/cron.weekly/docker-cleanup` — Docker-Cleanup Cron
 
 ## ARM64-Besonderheiten
 - `docker buildx` für Multi-Arch-Builds

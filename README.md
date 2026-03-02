@@ -400,6 +400,35 @@ ssh-copy-id -i ~/.ssh/id_ed25519.pub BENUTZER@IP-ADRESSE
 
 Du wirst nach dem **Passwort** gefragt (aus der Pre-Config in Phase 3). Danach ist der Key hinterlegt.
 
+> **Fehler: `Permission denied (publickey)`?**
+>
+> Das Setup-Script hat Passwort-Login bereits deaktiviert — `ssh-copy-id` kann den Key nicht übertragen. In diesem Fall den Key **manuell über die serielle Konsole** hinterlegen:
+>
+> 1. Public Key auf dem Mac anzeigen und kopieren:
+>    ```bash
+>    cat ~/.ssh/id_ed25519.pub
+>    ```
+>
+> 2. Serielle Konsole zum Jetson öffnen (Ubuntu-Laptop oder Mac):
+>    ```bash
+>    # Ubuntu-Laptop
+>    sudo screen /dev/ttyACM0 115200
+>    # macOS
+>    screen /dev/cu.usbmodem* 115200
+>    ```
+>
+> 3. Auf dem **Jetson** einloggen und Key eintragen — Befehle einzeln ausführen (serielle Konsole hat kleinen Paste-Buffer):
+>    ```bash
+>    mkdir -p ~/.ssh
+>    chmod 700 ~/.ssh
+>    echo "HIER-DEN-KOPIERTEN-KEY-EINFÜGEN" >> ~/.ssh/authorized_keys
+>    chmod 600 ~/.ssh/authorized_keys
+>    cat ~/.ssh/authorized_keys
+>    ```
+>    Der `cat`-Befehl sollte eine Zeile mit `ssh-ed25519 AAAA...` zeigen.
+>
+> 4. Serielle Konsole beenden (`Ctrl+A` dann `K`) und SSH vom Mac erneut testen.
+
 **Schritt 5.3 — SSH-Verbindung testen**
 
 ```bash
@@ -596,28 +625,53 @@ Vollständige Vorlage: [`.env.example`](.env.example)
 ## Repo-Struktur
 
 ```
-├── .env.example           # Konfigurations-Vorlage (alle Variablen)
+├── .env.example                # Konfigurations-Vorlage (alle Variablen)
 ├── .gitignore
-├── CLAUDE.md              # Kontext für Claude Code
-├── README.md              # Diese Datei
-├── SETUP-PLAN.md          # Kompakte Planungsübersicht
-├── setup.sh               # Hauptorchestrator
+├── CLAUDE.md                   # Kontext für Claude Code
+├── README.md                   # Diese Datei
+├── SETUP-PLAN.md               # Kompakte Planungsübersicht
+├── setup.sh                    # Hauptorchestrator
 ├── scripts/
-│   ├── 01-system-optimize.sh
-│   ├── 02-network-setup.sh
-│   ├── 03-ssh-harden.sh
-│   ├── 04-nvme-setup.sh
-│   ├── 05-docker-setup.sh
-│   ├── 06-devtools-setup.sh
-│   └── 07-quality-of-life.sh
+│   ├── 01-system-optimize.sh   # GUI deaktivieren, Services minimieren, Kernel tunen
+│   ├── 02-network-setup.sh     # Hostname, mDNS (Avahi), optional Tailscale
+│   ├── 03-ssh-harden.sh        # Key-Only Auth, fail2ban, SSH-Härtung
+│   ├── 04-nvme-setup.sh        # NVMe partitionieren, mounten, Swap, Verzeichnisse
+│   ├── 05-docker-setup.sh      # Docker + NVIDIA Runtime, Daten auf NVMe
+│   ├── 06-devtools-setup.sh    # Node.js, Python, Git, Claude Code, jtop
+│   └── 07-quality-of-life.sh   # tmux, Aliases, MOTD, Power-Mode
 ├── config/
-│   ├── daemon.json.template   # Docker-Daemon Vorlage
-│   ├── tmux.conf              # tmux-Konfiguration
-│   ├── bash_aliases           # Shell-Aliases
-│   └── mac-ssh-config         # SSH-Config für Mac
+│   ├── daemon.json.template    # Docker-Daemon Vorlage
+│   ├── tmux.conf               # tmux-Konfiguration
+│   ├── bash_aliases            # Shell-Aliases
+│   └── mac-ssh-config          # SSH-Config-Template für Mac
 └── agents/
-    └── README.md              # Claude Code Agent-Patterns
+    └── README.md               # Claude Code Agent-Patterns
 ```
+
+## Sicherheits- und Performance-Optimierungen
+
+Das Setup implementiert folgende Härtungs- und Optimierungsmaßnahmen:
+
+### Sicherheit
+
+| Maßnahme | Details |
+|----------|---------|
+| **SSH Key-Only Auth** | Passwort-Login deaktiviert, nur Ed25519 Public-Key |
+| **fail2ban** | 3 Fehlversuche → 1h Ban, Wiederholungstäter → 1 Woche Ban (recidive) |
+| **UFW Firewall** | Deny incoming (nur SSH + mDNS erlaubt), Allow outgoing |
+| **Automatische Sicherheitsupdates** | Ubuntu `-security` Patches, Docker/NVIDIA ausgenommen |
+| **Netzwerk-Hardening** | SYN-Cookies, Reverse-Path-Filter, keine Redirects |
+
+### Performance & Stabilität
+
+| Maßnahme | Details |
+|----------|---------|
+| **Kernel-Tuning** | `vm.swappiness=10`, `vfs_cache_pressure=50`, `dirty_ratio=10`, 64MB `min_free_kbytes` |
+| **OOM-Schutz** | SSH-Daemon und Docker vor OOM-Killer geschützt (`OOMScoreAdjust`) |
+| **NVMe-Optimierung** | `noatime`-Mount, `none` I/O-Scheduler, wöchentlich TRIM (`fstrim.timer`) |
+| **Journald-Limit** | Max 200MB Logs, 1 Woche Retention, komprimiert |
+| **Service-Minimierung** | ~39 laufende Services (Desktop, Print, WiFi, PackageKit etc. deaktiviert) |
+| **Automatische Wartung** | Wöchentliche NVMe-Health-Checks und Docker-Cleanup per Cron |
 
 ## Für neue Kunden-Geräte
 
@@ -668,8 +722,9 @@ cat config/mac-ssh-config
 | Problem | Lösung |
 |---------|--------|
 | Connection refused | SSH-Dienst läuft? Via serieller Konsole prüfen: `systemctl status sshd` |
-| Permission denied | Key kopiert? `ssh-copy-id` erneut ausführen. |
+| Permission denied (publickey) | Key nicht hinterlegt. Manuell über serielle Konsole eintragen (siehe Phase 5, Troubleshooting-Box). |
 | Ausgesperrt nach SSH-Härtung | USB-C vom Ubuntu-Laptop anschließen, serielle Konsole öffnen (`sudo screen /dev/ttyACM0 115200`), SSH-Config reparieren. |
+| Firewall blockiert Verbindung | `sudo ufw status` prüfen. Port 22 muss erlaubt sein: `sudo ufw allow ssh` |
 | `.local` Hostname geht nicht | mDNS/Avahi auf dem Jetson: `systemctl status avahi-daemon`. Auf dem Mac: Neustart des mDNS: `sudo killall -HUP mDNSResponder` |
 
 ### NVMe-Probleme
@@ -691,26 +746,38 @@ cat config/mac-ssh-config
 
 | Problem | Lösung |
 |---------|--------|
-| OOM (Out of Memory) | `free -h` prüfen. Container mit Memory-Limits starten (`--memory=2g`). |
+| OOM (Out of Memory) | `free -h` prüfen. Container mit Memory-Limits starten (`--memory=2g`). SSH und Docker sind OOM-geschützt. |
 | Nur 4–5GB frei bei 8GB | Normal — GPU reserviert 1–2GB vom geteilten RAM. |
+| Prozess wird unerwartet beendet | OOM-Killer aktiv? `dmesg \| grep -i oom` prüfen. SSH/Docker bleiben geschützt. |
 
 ## Wartung
 
+Vieles läuft automatisch (Sicherheitsupdates, Docker-Cleanup, NVMe-Health-Checks, TRIM). Für manuelle Wartung:
+
 ```bash
-# System-Updates (manuell — kein Auto-Update auf Edge-Devices!)
+# System-Updates (automatische Security-Patches laufen bereits)
 sudo apt update && sudo apt upgrade -y
 
-# Docker aufräumen
+# Docker aufräumen (läuft auch wöchentlich per Cron)
 docker system prune -af --volumes
 
-# NVMe-Health prüfen
+# NVMe-Health prüfen (läuft auch wöchentlich, Log: /var/log/jetson-setup/nvme-health.log)
 sudo nvme smart-log /dev/nvme0n1
 
-# Logs aufräumen
+# Logs aufräumen (Journald ist auf 200MB limitiert)
 sudo journalctl --vacuum-time=7d
 
 # Swap prüfen
 swapon --show
+
+# Firewall-Status
+sudo ufw status verbose
+
+# fail2ban-Status (gebannte IPs)
+sudo fail2ban-client status sshd
+
+# Laufende Services zählen
+systemctl list-units --type=service --state=running --no-pager | wc -l
 ```
 
 ## Lizenz
