@@ -67,33 +67,30 @@ Scripts lesen Variablen über exportierte Umgebungsvariablen von `setup.sh`.
 - Logs unter `/var/log/jetson-setup/`
 - Exit-Codes: 0=Erfolg, 1=Fehler, 2=Übersprungen
 
-## Typische Befehle auf dem Gerät
+## `arasul` CLI-Tool
+Systemverwaltung über ein zentrales Kommando:
 ```bash
-# Systemüberwachung
+arasul status              # System-Dashboard (Default)
+arasul health              # Vollständiger Health-Check
+arasul update              # System-Update
+arasul docker status       # Container-Übersicht
+arasul docker cleanup      # Docker aufräumen
+arasul power max           # 25W + Max Clocks
+arasul power default       # 15W Standard
+arasul nvme status         # NVMe-Health + SMART
+arasul network             # Netzwerk-Info
+arasul ssh status          # SSH-Security-Status
+arasul backup create       # Konfiguration sichern
+arasul help                # Alle Befehle
+```
+
+Installiert unter `/usr/local/bin/arasul`, Kommandos unter `/usr/local/lib/arasul/commands/`.
+
+## Weitere nützliche Befehle
+```bash
 jtop                          # Jetson Dashboard (GPU, RAM, Temp)
 sudo tegrastats               # Einzeilige System-Stats
-sudo nvpmodel -q              # Aktueller Power-Mode
-sudo jetson_clocks --show     # Aktuelle Taktfrequenzen
-
-# Docker
-docker ps                     # Laufende Container
-docker system df              # Speicherverbrauch
 docker compose up -d          # Stack starten
-
-# Power
-sudo nvpmodel -m 0            # 15W Standard
-sudo nvpmodel -m 2            # 25W Super-Modus
-sudo jetson_clocks            # Clocks auf Maximum
-
-# Speicher
-df -h /mnt/nvme               # NVMe freier Speicher
-sudo nvme smart-log /dev/nvme0n1  # NVMe Health
-free -h                       # RAM + Swap
-
-# Sicherheit
-sudo ufw status verbose       # Firewall-Status
-sudo fail2ban-client status sshd  # Gebannte IPs
-sudo unattended-upgrades --dry-run  # Ausstehende Security-Patches
 ```
 
 ## Entwicklungs-Workflow

@@ -577,9 +577,41 @@ jtop                        # Interaktives Dashboard
 | `jtop` | Jetson Systemmonitor |
 | `dps` | Docker Container (formatiert) |
 | `powermode` | NVPower-Mode anzeigen |
-| `maxperf` | 25W + Max Clocks |
-| `ram` | RAM + Swap |
-| `temps` | Temperatur-Sensoren |
+| `a` / `as` | `arasul status` — System-Dashboard |
+| `ah` | `arasul health` — Health-Check |
+
+### `arasul` CLI-Tool
+
+Der Jetson wird mit dem `arasul` CLI-Tool ausgeliefert. Alle Systemverwaltung über einen Befehl:
+
+```bash
+arasul status                  # System-Dashboard (Default)
+arasul health                  # Vollständiger Health-Check
+arasul update                  # System-Update (Security-Patches)
+arasul logs [system|docker|ssh]  # Logs anzeigen
+
+arasul docker status           # Container-Übersicht
+arasul docker cleanup          # Ungenutzte Images/Volumes entfernen
+arasul docker restart <name>   # Container neustarten
+
+arasul power status            # Aktueller Power-Modus
+arasul power max               # 25W + Max Clocks
+arasul power default           # 15W Standard
+arasul power save              # 7W Energiesparmodus
+
+arasul nvme status             # NVMe-Health, SMART, Wear
+arasul nvme trim               # Manuelles TRIM
+arasul nvme smart              # Vollständige SMART-Daten
+
+arasul network                 # IP, Hostname, mDNS, Gateway, DNS
+arasul ssh status              # Sessions, gebannte IPs, Firewall
+arasul ssh unban <ip>          # IP aus fail2ban entbannen
+arasul backup create           # Konfiguration sichern
+arasul backup list             # Vorhandene Backups anzeigen
+
+arasul help                    # Alle Befehle anzeigen
+arasul version                 # Version anzeigen
+```
 
 ## Einzelne Setup-Schritte nachträglich ausführen
 
@@ -597,8 +629,9 @@ sudo ./setup.sh --step 6    # Nur Dev-Tools
 Docker + NVIDIA     → GPU-Container, Daten auf NVMe
 Node.js 22 + Claude → AI-unterstützte Entwicklung
 tmux + Aliases      → Persistente Sessions, Shortcuts
-SSH gehärtet        → Key-Only Auth, fail2ban, mDNS
-Custom MOTD         → RAM/Disk/Temp beim Login
+SSH gehärtet        → Key-Only Auth, fail2ban, UFW Firewall
+arasul CLI          → Systemverwaltung via `arasul` Kommandos
+Custom MOTD         → Minimales Dashboard beim Login
 ```
 
 ## Konfiguration
