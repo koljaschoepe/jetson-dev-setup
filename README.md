@@ -280,14 +280,17 @@ Verbindung herstellen — je nach Host-System:
 sudo apt install screen          # einmalig
 sudo screen /dev/ttyACM0 115200
 
-# macOS: screen über Homebrew installieren (siehe Voraussetzungen)
+# macOS: Device-Pfad ermitteln, dann screen nutzen
+ls /dev/cu.usbmodem*             # zeigt z.B. /dev/cu.usbmodem14101
 brew install screen              # einmalig
-sudo screen /dev/ttyACM0 115200
+screen /dev/cu.usbmodem* 115200
 
 # macOS Alternative: cu ist bereits vorinstalliert (kein Homebrew nötig)
-sudo cu -l /dev/ttyACM0 -s 115200
+sudo cu -l /dev/cu.usbmodem14101 -s 115200
 ```
 
+> **Wichtig:** Nach dem Verbinden **Enter drücken** — die Konsole zeigt erst dann den Login-Prompt.
+>
 > **Beenden:** `screen` mit `Ctrl+A` dann `K` — `cu` mit `~.` (Tilde + Punkt).
 
 **Schritt 4.2 — Einloggen und Netzwerk prüfen**
@@ -297,13 +300,20 @@ login: dein-benutzername
 Password: dein-passwort
 ```
 
-Ethernet-Kabel muss am Jetson stecken (Router/Switch). IP prüfen:
+Ethernet-Kabel muss am Jetson stecken (Router/Switch). IP prüfen (auf dem **Jetson**, nicht auf dem Laptop!):
 
 ```bash
+# Netzwerk-Interface herausfinden
+ip link show
+# Typisch: eth0 — kann aber auch enp1s0 o.ä. heißen
+
+# IP anzeigen (Interface-Name anpassen falls nötig)
 ip addr show eth0 | grep "inet "
 # Ausgabe z.B.: inet 192.168.1.42/24 ...
 ```
 
+> Falls `eth0` nicht existiert, nutze den Interface-Namen aus `ip link show`.
+>
 > Notiere dir die **IP-Adresse** — du brauchst sie in Phase 5 für SSH vom Mac.
 
 **Schritt 4.3 — Repo klonen und Setup starten**
