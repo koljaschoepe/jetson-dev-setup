@@ -30,12 +30,12 @@ Voraussetzung: Ubuntu 20.04/22.04 x86-Host mit NVIDIA SDK Manager.
 
 1. SDK Manager installieren: https://developer.nvidia.com/sdk-manager
 2. Jetson im Recovery-Modus verbinden (USB-C)
-3. JetPack 6.2+ auswählen und auf NVMe flashen
+3. JetPack 6.2.2 auswählen und auf NVMe flashen
 4. oem-config über serielle Konsole abschließen
 
 ### Option B: SD-Karte
 
-1. JetPack 6.2+ Image herunterladen:
+1. JetPack 6.2.2 Image herunterladen:
    https://developer.nvidia.com/embedded/jetpack
 2. Mit balenaEtcher auf SD-Karte flashen
 3. SD-Karte einlegen, booten

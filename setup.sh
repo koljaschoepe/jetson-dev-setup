@@ -5,7 +5,7 @@
 # Usage: sudo ./setup.sh [--skip-reboot] [--step N]
 #
 # Voraussetzungen:
-#   1. JetPack 6.2+ geflasht (SD-Karte oder NVMe via SDK Manager)
+#   1. JetPack 6.2.2 geflasht (SD-Karte oder NVMe via SDK Manager)
 #   2. oem-config abgeschlossen (Erststart-Assistent)
 #   3. SSH-Zugang zum Gerät
 #   4. .env Datei konfiguriert (cp .env.example .env && nano .env)

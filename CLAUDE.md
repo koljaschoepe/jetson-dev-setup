@@ -7,7 +7,7 @@ Automatisierte Setup-Scripts um ein frisches NVIDIA Jetson Orin Nano Super Dev K
 - **Gerät:** NVIDIA Jetson Orin Nano Super Developer Kit (2025)
 - **SoC:** Orin (6× Arm Cortex-A78AE @ 1.7GHz, 1024 CUDA Cores Ampere GPU)
 - **RAM:** 8GB LPDDR5 **geteilt** zwischen CPU und GPU
-- **OS:** JetPack 6.2+ (Ubuntu 22.04, Linux 5.15, CUDA 12.6)
+- **OS:** JetPack 6.2.2 (Ubuntu 22.04, Jetson Linux 36.5, Kernel 5.15, CUDA 12.6)
 - **Arch:** aarch64 / ARM64
 - **Speicher:** NVMe M.2 2280 SSD (Primärspeicher)
 - **Netzwerk:** Gigabit Ethernet
