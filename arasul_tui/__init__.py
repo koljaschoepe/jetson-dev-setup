@@ -1,0 +1,2 @@
+"""Arasul TUI package."""
+

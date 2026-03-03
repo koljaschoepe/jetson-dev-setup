@@ -9,6 +9,9 @@ alias tl='tmux list-sessions'
 # Claude Code
 alias c='claude'
 alias cc='claude --continue'
+alias atui='arasul-shell'
+alias as='arasul status'
+alias ah='arasul health'
 
 # Systemüberwachung
 alias temps='cat /sys/devices/virtual/thermal/thermal_zone*/type /sys/devices/virtual/thermal/thermal_zone*/temp 2>/dev/null | paste - - | column -t'

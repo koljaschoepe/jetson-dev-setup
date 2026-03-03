@@ -51,6 +51,16 @@ elif ! grep -q "jetson-dev" "$ALIASES_FILE" 2>/dev/null; then
     log "Shell-Aliases installiert"
 fi
 
+# zusätzliche Arasul-Aliases ergänzen
+if ! grep -q "alias atui='arasul-shell'" "$ALIASES_FILE" 2>/dev/null; then
+    cat >> "$ALIASES_FILE" << 'ALIASES'
+alias atui='arasul-shell'
+alias as='arasul status'
+alias ah='arasul health'
+ALIASES
+    chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
+fi
+
 # ---------------------------------------------------------------------------
 # Bash-Prompt mit Jetson-Kontext
 # ---------------------------------------------------------------------------
@@ -85,31 +95,36 @@ if command -v nvpmodel &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# Welcome-Message (MOTD)
+# MOTD deaktivieren — die Arasul Shell uebernimmt beim SSH-Login
 # ---------------------------------------------------------------------------
-cat > /etc/update-motd.d/99-jetson-dev << MOTD
-#!/bin/bash
-echo ""
-echo "  ╔══════════════════════════════════════════════════════╗"
-echo "  ║  Jetson Orin Nano Super — ${CUSTOMER_NAME}"
-echo "  ╚══════════════════════════════════════════════════════╝"
-echo ""
-echo "  Schnellbefehle:"
-echo "    t           → tmux 'dev' Session"
-echo "    claude      → Claude Code starten"
-echo "    jtop        → Systemmonitor (GPU, RAM, Temp)"
-echo "    p           → cd ~/projects"
-echo "    powermode   → Power-Mode anzeigen"
-echo ""
-printf "  RAM: %s | " "\$(free -h | awk '/^Mem:/{print \$3"/"\$2}')"
-printf "Disk: %s | " "\$(df -h ${NVME_MOUNT} 2>/dev/null | awk 'NR==2{print \$3"/"\$2}' || df -h / | awk 'NR==2{print \$3"/"\$2}')"
-printf "Temp: %s°C\n" "\$(cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf "%.0f", \$1/1000}')"
-echo ""
-MOTD
-chmod +x /etc/update-motd.d/99-jetson-dev
+chmod -x /etc/update-motd.d/* 2>/dev/null || true
+log "MOTD deaktiviert (Arasul Shell uebernimmt)"
 
-chmod -x /etc/update-motd.d/10-help-text 2>/dev/null || true
-chmod -x /etc/update-motd.d/50-motd-news 2>/dev/null || true
+# Arasul Shell auto-start bei SSH-Login
+if ! grep -q "ARASUL_SHELL_ACTIVE" "$BASHRC" 2>/dev/null; then
+    cat >> "$BASHRC" << 'AUTOSTART'
 
-log "Welcome-Message (MOTD) konfiguriert"
+# Auto-start Arasul Shell bei interaktivem SSH-Login
+if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && command -v arasul-shell &>/dev/null; then
+    export ARASUL_SHELL_ACTIVE=1
+    exec arasul-shell
+fi
+AUTOSTART
+    chown "${REAL_USER}:${REAL_USER}" "$BASHRC"
+    log "Arasul Shell Auto-Start konfiguriert"
+fi
+
+# ---------------------------------------------------------------------------
+# Arasul TUI installieren (optional)
+# ---------------------------------------------------------------------------
+if [[ "${INSTALL_ARASUL_TUI:-true}" == "true" ]]; then
+    if [[ -d "${SCRIPT_DIR}/arasul_tui" ]] && [[ -f "${SCRIPT_DIR}/pyproject.toml" ]]; then
+        run_as_user "bash '${SCRIPT_DIR}/arasul_tui/install.sh'" && log "Arasul TUI installiert"
+    else
+        warn "Arasul TUI Quellen nicht im Repo gefunden - Installation übersprungen"
+    fi
+else
+    skip "Arasul TUI Installation deaktiviert"
+fi
+
 log "Quality-of-Life-Setup abgeschlossen"

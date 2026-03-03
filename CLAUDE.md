@@ -40,9 +40,16 @@ Scripts lesen Variablen über exportierte Umgebungsvariablen von `setup.sh`.
 ## Repo-Struktur
 ```
 ├── .env.example           # Konfigurations-Vorlage
+├── pyproject.toml         # Python-Paketdefinition (Arasul TUI)
 ├── CLAUDE.md              # Diese Datei
 ├── README.md              # Setup-Anleitung
 ├── setup.sh               # Hauptorchestrator (sourced .env)
+├── arasul_tui/
+│   ├── app.py             # Textual TUI App
+│   ├── commands.py        # Slash-Commands
+│   ├── install.sh         # Installer (venv + launcher)
+│   ├── core/              # Router, Registry, Projects, Session-Lock
+│   └── providers/         # Claude/Codex Provider-Layer
 ├── scripts/
 │   ├── 01-system-optimize.sh  # GUI deaktivieren, Services, Kernel tunen
 │   ├── 02-network-setup.sh    # Hostname, mDNS, optional Tailscale
@@ -50,7 +57,8 @@ Scripts lesen Variablen über exportierte Umgebungsvariablen von `setup.sh`.
 │   ├── 04-nvme-setup.sh       # Partition, Format, Mount, Swap
 │   ├── 05-docker-setup.sh     # Docker, NVIDIA Runtime, Compose
 │   ├── 06-devtools-setup.sh   # Node.js, Python, Git, Claude Code
-│   └── 07-quality-of-life.sh  # tmux, Aliases, MOTD
+│   ├── 07-quality-of-life.sh  # tmux, Aliases, MOTD
+│   └── 08-browser-setup.sh    # Playwright + Headless Chromium
 ├── config/
 │   ├── daemon.json.template   # Docker-Daemon Vorlage
 │   ├── tmux.conf              # tmux-Konfiguration
@@ -86,6 +94,31 @@ arasul help                # Alle Befehle
 
 Installiert unter `/usr/local/bin/arasul`, Kommandos unter `/usr/local/lib/arasul/commands/`.
 
+## Arasul TUI
+- Quellcode unter `arasul_tui/`
+- Start lokal aus dem Repo mit:
+  - `python3 -m pip install -e .`
+  - `arasul-tui`
+- Optionaler Installer:
+  - `./arasul_tui/install.sh`
+  - Start dann mit `arasul-shell` oder Alias `atui`
+- Slash-Commands:
+  - `/status` — Systemstatus
+  - `/open <projekt>` — Projektordner aktivieren
+  - `/create` — Neues Projekt (interaktiv)
+  - `/claude` — Claude Code starten (mit OAuth-Setup-Wizard)
+  - `/codex` — Codex starten
+  - `/browser status|test|install|mcp` — Headless Browser verwalten
+  - `/help`, `/exit`
+
+## Headless Browser (Playwright)
+- Playwright + Chromium headless fuer AI Agent Browser-Automation
+- Browser-Cache auf NVMe: `/mnt/nvme/playwright-browsers`
+- Env-Variable: `PLAYWRIGHT_BROWSERS_PATH=/mnt/nvme/playwright-browsers`
+- MCP Server: Playwright MCP in `~/.claude.json` konfiguriert
+- Claude Code kann damit Webseiten navigieren, Screenshots machen, Formulare ausfuellen
+- Installation: `sudo ./setup.sh --step 8` oder `/browser install` in der TUI
+
 ## Weitere nützliche Befehle
 ```bash
 jtop                          # Jetson Dashboard (GPU, RAM, Temp)
@@ -103,6 +136,7 @@ docker compose up -d          # Stack starten
 - `/mnt/nvme/projects/` — Alle Projekte
 - `/mnt/nvme/docker/` — Docker Data Root
 - `/mnt/nvme/models/` — AI-Modelle (Ollama etc.)
+- `/mnt/nvme/playwright-browsers/` — Headless Chromium Cache
 - `/mnt/nvme/backups/` — Backups
 - `/var/log/jetson-setup/` — Setup-Logs
 - `/var/log/jetson-setup/nvme-health.log` — Wöchentliche NVMe SMART-Daten

@@ -577,6 +577,7 @@ jtop                        # Interaktives Dashboard
 | `jtop` | Jetson Systemmonitor |
 | `dps` | Docker Container (formatiert) |
 | `powermode` | NVPower-Mode anzeigen |
+| `atui` | Arasul Textual TUI starten |
 | `a` / `as` | `arasul status` — System-Dashboard |
 | `ah` | `arasul health` — Health-Check |
 
@@ -612,6 +613,32 @@ arasul backup list             # Vorhandene Backups anzeigen
 arasul help                    # Alle Befehle anzeigen
 arasul version                 # Version anzeigen
 ```
+
+### Arasul TUI (Textual, Preview)
+
+Erster TUI-Start für Slash-Commands ist jetzt als Python-Textual-App im Repo enthalten.
+
+```bash
+# Im Repo
+python3 -m pip install -e .
+arasul-tui
+
+# Oder über den Installer
+chmod +x arasul_tui/install.sh
+./arasul_tui/install.sh
+arasul-shell
+```
+
+Wichtige Slash-Commands in der TUI:
+`/help`, `/status`, `/health`, `/network`, `/docker status`, `/provider list`,
+`/project list`, `/project create`, `/project clone`,
+`/project switch <name>`, `/project open <path>`, `/provider use claude|openai`,
+`/claude`, `/openai`, `/power off`, `/exit`, `/quit`
+
+Interaktive Flows:
+- `/project create` fragt bei fehlendem Namen nach dem Projektnamen
+- `/project clone` fragt bei fehlender URL nach dem GitHub-Link
+- Projekte werden in `~/.config/arasul/projects.yaml` registriert
 
 ## Einzelne Setup-Schritte nachträglich ausführen
 
@@ -649,6 +676,7 @@ SWAP_SIZE="32G"
 INSTALL_TAILSCALE="false"
 INSTALL_CLAUDE="true"
 INSTALL_OLLAMA="false"
+INSTALL_ARASUL_TUI="true"
 NODE_VERSION="22"
 POWER_MODE="3"          # 0=7W, 1=15W, 3=25W
 ```
@@ -660,10 +688,17 @@ Vollständige Vorlage: [`.env.example`](.env.example)
 ```
 ├── .env.example                # Konfigurations-Vorlage (alle Variablen)
 ├── .gitignore
+├── pyproject.toml              # Python-Paketdefinition (Arasul TUI)
 ├── CLAUDE.md                   # Kontext für Claude Code
 ├── README.md                   # Diese Datei
 ├── SETUP-PLAN.md               # Kompakte Planungsübersicht
 ├── setup.sh                    # Hauptorchestrator
+├── arasul_tui/
+│   ├── app.py                  # Textual TUI App (Slash-Interface)
+│   ├── commands.py             # Slash-Command Handler
+│   ├── install.sh              # Installer für `arasul-shell`
+│   ├── core/                   # Router, State, Session-Lock, Registry, GitOps
+│   └── providers/              # Provider-Layer (Claude + Codex)
 ├── scripts/
 │   ├── 01-system-optimize.sh   # GUI deaktivieren, Services minimieren, Kernel tunen
 │   ├── 02-network-setup.sh     # Hostname, mDNS (Avahi), optional Tailscale

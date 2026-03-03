@@ -74,6 +74,7 @@ load_config() {
     NODE_VERSION="${NODE_VERSION:-22}"
     INSTALL_CLAUDE="${INSTALL_CLAUDE:-true}"
     INSTALL_OLLAMA="${INSTALL_OLLAMA:-false}"
+    INSTALL_ARASUL_TUI="${INSTALL_ARASUL_TUI:-true}"
     POWER_MODE="${POWER_MODE:-3}"
     DOCKER_LOG_MAX_SIZE="${DOCKER_LOG_MAX_SIZE:-10m}"
     DOCKER_LOG_MAX_FILES="${DOCKER_LOG_MAX_FILES:-3}"
@@ -109,6 +110,8 @@ interactive_config() {
     read -rp "Git Email: " i_git_email
     read -rp "Claude Code installieren? (true/false) [true]: " i_claude
     i_claude="${i_claude:-true}"
+    read -rp "Arasul TUI installieren? (true/false) [true]: " i_tui
+    i_tui="${i_tui:-true}"
 
     cp "${SCRIPT_DIR}/.env.example" "$env_file"
     sed -i "s/CUSTOMER_NAME=\"CHANGEME\"/CUSTOMER_NAME=\"${i_customer}\"/" "$env_file"
@@ -119,6 +122,7 @@ interactive_config() {
     sed -i "s/GIT_USER_NAME=\"CHANGEME\"/GIT_USER_NAME=\"${i_git_name}\"/" "$env_file"
     sed -i "s/GIT_USER_EMAIL=\"CHANGEME\"/GIT_USER_EMAIL=\"${i_git_email}\"/" "$env_file"
     sed -i "s/INSTALL_CLAUDE=\"true\"/INSTALL_CLAUDE=\"${i_claude}\"/" "$env_file"
+    sed -i "s/INSTALL_ARASUL_TUI=\"true\"/INSTALL_ARASUL_TUI=\"${i_tui}\"/" "$env_file"
 
     log ".env Datei erstellt: ${env_file}"
     echo ""
@@ -180,7 +184,7 @@ parse_args() {
                 echo "Optionen:"
                 echo "  --interactive    Interaktiver Modus (.env wird generiert)"
                 echo "  --skip-reboot    Kein Reboot nach Setup"
-                echo "  --step N         Nur Schritt N ausführen (1-7)"
+                echo "  --step N         Nur Schritt N ausführen (1-8)"
                 echo "  -h, --help       Diese Hilfe anzeigen"
                 echo ""
                 echo "Schritte:"
@@ -191,6 +195,7 @@ parse_args() {
                 echo "  5  Docker-Konfiguration (NVIDIA Runtime)"
                 echo "  6  Entwicklungstools (Node.js, Python, Claude Code)"
                 echo "  7  Quality of Life (tmux, Aliases, jtop)"
+                echo "  8  Headless Browser (Playwright + Chromium)"
                 exit 0
                 ;;
             *) err "Unbekannte Option: $1"; exit 1 ;;
@@ -216,6 +221,7 @@ run_script() {
     # Alle Konfig-Variablen exportieren für Subscripts
     export REAL_USER REAL_HOME NVME_DEVICE NVME_MOUNT SWAP_SIZE
     export INSTALL_TAILSCALE INSTALL_CLAUDE INSTALL_OLLAMA
+    export INSTALL_ARASUL_TUI
     export NODE_VERSION POWER_MODE JETSON_HOSTNAME CUSTOMER_NAME
     export GIT_USER_NAME GIT_USER_EMAIL
     export DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILES
@@ -272,7 +278,8 @@ if [[ -n "$SINGLE_STEP" ]]; then
         5) run_script "05" "docker-setup" ;;
         6) run_script "06" "devtools-setup" ;;
         7) run_script "07" "quality-of-life" ;;
-        *) err "Ungültiger Schritt: $SINGLE_STEP (muss 1-7 sein)"; exit 1 ;;
+        8) run_script "08" "browser-setup" ;;
+        *) err "Ungültiger Schritt: $SINGLE_STEP (muss 1-8 sein)"; exit 1 ;;
     esac
 else
     run_script "01" "system-optimize"
@@ -290,6 +297,7 @@ else
     run_script "05" "docker-setup"
     run_script "06" "devtools-setup"
     run_script "07" "quality-of-life"
+    run_script "08" "browser-setup"
 fi
 
 echo ""

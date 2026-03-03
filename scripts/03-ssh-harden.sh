@@ -47,6 +47,7 @@ ClientAliveInterval 300
 ClientAliveCountMax 3
 AllowAgentForwarding yes
 AllowTcpForwarding yes
+PrintLastLog no
 EOF
 
     if sshd -t 2>/dev/null; then
