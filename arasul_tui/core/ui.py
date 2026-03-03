@@ -75,18 +75,15 @@ def _system_info() -> list[str]:
 
     power = _quick_run("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'") or ""
 
-    hw_parts = ["Jetson Orin Nano Super"]
-    if power:
-        hw_parts.append(power)
-    if temp_str:
-        hw_parts.append(temp_str)
+    power_temp = [p for p in [power, temp_str] if p]
 
     ip = _quick_run("hostname -I 2>/dev/null | awk '{print $1}'") or "n/a"
 
     return [
-        " [dim]·[/dim] ".join(hw_parts),
-        f"{ip} [dim]·[/dim] RAM {ram}",
-        f"Disk {disk}",
+        "Jetson Orin Nano Super",
+        " [dim]·[/dim] ".join(power_temp) if power_temp else "",
+        ip,
+        f"RAM {ram} [dim]·[/dim] Disk {disk}",
     ]
 
 
@@ -359,20 +356,29 @@ def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
     return result
 
 
-def print_separator() -> None:
-    """Print a thin separator line matching the panel width."""
+def _frame_left_pad() -> int:
+    """Left padding to align content with the centered frame."""
     w = _adaptive_width()
-    console.print("─" * (w - 2), style="dim", justify="center")
+    return max(0, (console.width - w) // 2)
+
+
+def print_separator() -> None:
+    """Print a thin separator line aligned with the frame."""
+    w = _adaptive_width()
+    pad = " " * _frame_left_pad()
+    console.print(f"{pad}{'─' * (w - 2)}", style="dim", highlight=False)
 
 
 def build_prompt(state: TuiState, wizard_step: tuple[int, int, str] | None = None) -> str:
     """Returns prompt_toolkit HTML markup (not Rich markup)."""
+    pad = " " * (_frame_left_pad() + 2)
+
     if wizard_step:
         cur, total, label = wizard_step
-        return f"<style fg='yellow'>[{cur}/{total}]</style> {label} &gt; "
+        return f"{pad}<style fg='yellow'>[{cur}/{total}]</style> {label} &gt; "
 
     if state.active_project:
         name = state.active_project.name
-        return f"<b><style fg='ansicyan'>{name}</style></b> &gt; "
+        return f"{pad}<b><style fg='ansicyan'>{name}</style></b> &gt; "
 
-    return "<b>&gt;</b> "
+    return f"{pad}<b>&gt;</b> "
