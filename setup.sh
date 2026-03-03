@@ -144,7 +144,8 @@ check_user_exists() {
 
 setup_logging() {
     mkdir -p "$LOG_DIR"
-    local logfile="${LOG_DIR}/setup-$(date +%Y%m%d-%H%M%S).log"
+    local logfile
+    logfile="${LOG_DIR}/setup-$(date +%Y%m%d-%H%M%S).log"
     exec > >(tee -a "$logfile")
     exec 2>&1
     log "Logfile: ${logfile}"

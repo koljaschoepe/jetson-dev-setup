@@ -25,10 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@2.0.0
-        with:
-          scandir: ./scripts
-          additional_files: setup.sh arasul_tui/install.sh
+        run: shellcheck -x --exclude=SC1091 scripts/*.sh setup.sh arasul_tui/install.sh
 
   test:
     name: Test Python ${{ matrix.python-version }}
