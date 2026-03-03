@@ -6,7 +6,7 @@ Thank you for your interest in contributing! This project helps people set up NV
 
 ### Reporting Issues
 
-- Use [GitHub Issues](https://github.com/koljaschoepe/arasul/issues) to report bugs or request features
+- Use [GitHub Issues](https://github.com/koljaschoepe/jetson-dev-setup/issues) to report bugs or request features
 - Include your JetPack version, Jetson model, and relevant log output
 - Check existing issues before creating a new one
 
@@ -24,8 +24,8 @@ Thank you for your interest in contributing! This project helps people set up NV
 ### Development Setup
 
 ```bash
-git clone https://github.com/koljaschoepe/arasul.git
-cd arasul
+git clone https://github.com/koljaschoepe/jetson-dev-setup.git
+cd jetson-dev-setup
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"

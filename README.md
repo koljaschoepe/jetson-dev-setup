@@ -306,8 +306,8 @@ ip addr show eth0 | grep "inet "
 **Step 4.3 — Clone Repo and Run Setup**
 
 ```bash
-git clone https://github.com/koljaschoepe/arasul.git
-cd arasul
+git clone https://github.com/koljaschoepe/jetson-dev-setup.git
+cd jetson-dev-setup
 sudo ./setup.sh --interactive
 ```
 

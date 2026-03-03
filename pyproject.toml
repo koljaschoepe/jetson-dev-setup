@@ -36,9 +36,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/koljaschoepe/arasul"
-Repository = "https://github.com/koljaschoepe/arasul"
-Issues = "https://github.com/koljaschoepe/arasul/issues"
+Homepage = "https://github.com/koljaschoepe/jetson-dev-setup"
+Repository = "https://github.com/koljaschoepe/jetson-dev-setup"
+Issues = "https://github.com/koljaschoepe/jetson-dev-setup/issues"
 
 [project.scripts]
 arasul = "arasul_tui.app:run"
