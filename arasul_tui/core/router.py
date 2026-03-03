@@ -65,7 +65,3 @@ def run_command(state: TuiState, raw: str) -> CommandResult:
         return CommandResult(ok=False, style="silent")
 
     return spec.handler(state, args)
-
-
-def complete_command(line: str) -> list[str]:
-    return REGISTRY.complete(line)

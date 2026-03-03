@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 01 — System-Optimierung
-# Desktop-GUI deaktivieren, unnötige Services stoppen, Kernel tunen
+# 01 — System Optimization
+# Disable desktop GUI, stop unnecessary services, tune kernel, configure
+# journald limits, OOM protection, and automatic security updates.
 # =============================================================================
 set -euo pipefail
 
-log()  { echo -e "\033[0;32m[✓]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-skip() { echo -e "\033[1;33m[→]\033[0m $* (bereits erledigt)"; }
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Desktop-Umgebung deaktivieren
+# Disable desktop environment
 # ---------------------------------------------------------------------------
 CURRENT_TARGET=$(systemctl get-default)
 if [[ "$CURRENT_TARGET" == "graphical.target" ]]; then
-    log "Wechsle zu multi-user.target (headless)..."
+    log "Switching to multi-user.target (headless)..."
     systemctl set-default multi-user.target
     systemctl stop gdm3 2>/dev/null || true
     systemctl disable gdm3 2>/dev/null || true
-    log "Desktop deaktiviert — ~800MB RAM gespart"
+    log "Desktop disabled — ~800MB RAM saved"
 else
-    skip "Bereits im Headless-Modus"
+    skip "Already in headless mode"
 fi
 
 # ---------------------------------------------------------------------------
-# Unnötige Services deaktivieren
+# Disable unnecessary services
 # ---------------------------------------------------------------------------
 DISABLE_SERVICES=(
     "nvargus-daemon.service"
@@ -36,21 +36,20 @@ DISABLE_SERVICES=(
     "colord.service"
     "whoopsie.service"
     "apport.service"
-    "unattended-upgrades.service"
 )
 
 for svc in "${DISABLE_SERVICES[@]}"; do
     if systemctl is-enabled "$svc" &>/dev/null 2>&1; then
         systemctl disable --now "$svc" 2>/dev/null || true
-        log "Deaktiviert: $svc"
+        log "Disabled: $svc"
     fi
 done
 
 # ---------------------------------------------------------------------------
-# Desktop-Pakete entfernen (~3GB Speicher)
+# Remove desktop packages (~3GB disk space)
 # ---------------------------------------------------------------------------
 if dpkg -l | grep -q ubuntu-desktop 2>/dev/null; then
-    log "Entferne Desktop-Pakete (dauert einige Minuten)..."
+    log "Removing desktop packages (takes a few minutes)..."
     apt-get remove --purge -y \
         ubuntu-desktop \
         gdm3 \
@@ -64,20 +63,20 @@ if dpkg -l | grep -q ubuntu-desktop 2>/dev/null; then
     apt-get autoremove --purge -y 2>/dev/null || true
     apt-get clean
 
-    # NetworkManager muss überleben
+    # NetworkManager must survive
     apt-get install -y network-manager 2>/dev/null || true
-    log "Desktop-Pakete entfernt — ~3GB Speicher frei"
+    log "Desktop packages removed — ~3GB disk space freed"
 else
-    skip "Desktop-Pakete bereits entfernt"
+    skip "Desktop packages already removed"
 fi
 
 # ---------------------------------------------------------------------------
-# System-Updates und Basispakete
+# System updates and base packages
 # ---------------------------------------------------------------------------
-log "Aktualisiere Paketlisten..."
+log "Updating package lists..."
 apt-get update -qq
 
-log "Installiere Basispakete..."
+log "Installing base packages..."
 apt-get install -y -qq \
     curl \
     wget \
@@ -94,28 +93,40 @@ apt-get install -y -qq \
     2>/dev/null
 
 # ---------------------------------------------------------------------------
-# Kernel-Parameter optimieren
+# Kernel parameter tuning
 # ---------------------------------------------------------------------------
 SYSCTL_FILE="/etc/sysctl.d/99-jetson-dev.conf"
 if [[ ! -f "$SYSCTL_FILE" ]]; then
     cat > "$SYSCTL_FILE" << 'EOF'
 # Jetson Dev Server — Kernel Tuning
 vm.swappiness=10
+vm.vfs_cache_pressure=50
+vm.dirty_ratio=10
+vm.min_free_kbytes=65536
 fs.inotify.max_user_watches=524288
 fs.inotify.max_user_instances=512
 net.core.somaxconn=65535
 net.core.rmem_max=16777216
 net.core.wmem_max=16777216
 fs.file-max=2097152
+
+# Network hardening
+net.ipv4.tcp_syncookies=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
 EOF
     sysctl -p "$SYSCTL_FILE"
-    log "Kernel-Parameter optimiert"
+    log "Kernel parameters optimized"
 else
-    skip "Kernel-Parameter bereits konfiguriert"
+    skip "Kernel parameters already configured"
 fi
 
 # ---------------------------------------------------------------------------
-# File-Descriptor-Limits erhöhen
+# File descriptor limits
 # ---------------------------------------------------------------------------
 LIMITS_FILE="/etc/security/limits.d/99-jetson-dev.conf"
 if [[ ! -f "$LIMITS_FILE" ]]; then
@@ -125,10 +136,83 @@ ${REAL_USER}    hard    nofile    131072
 ${REAL_USER}    soft    nproc     65536
 ${REAL_USER}    hard    nproc     65536
 EOF
-    log "File-Descriptor-Limits erhöht für ${REAL_USER}"
+    log "File descriptor limits raised for ${REAL_USER}"
 else
-    skip "File-Descriptor-Limits bereits gesetzt"
+    skip "File descriptor limits already set"
 fi
 
-log "System-Optimierung abgeschlossen"
-log "Freier RAM: $(free -h | awk '/^Mem:/{print $7}')"
+# ---------------------------------------------------------------------------
+# Journald size and retention limits
+# ---------------------------------------------------------------------------
+JOURNALD_DIR="/etc/systemd/journald.conf.d"
+JOURNALD_CONF="${JOURNALD_DIR}/99-jetson.conf"
+if [[ ! -f "$JOURNALD_CONF" ]]; then
+    mkdir -p "$JOURNALD_DIR"
+    cat > "$JOURNALD_CONF" << 'EOF'
+[Journal]
+SystemMaxUse=200M
+MaxRetentionSec=1week
+EOF
+    systemctl restart systemd-journald
+    log "Journald limited to 200MB / 1 week retention"
+else
+    skip "Journald limits already configured"
+fi
+
+# ---------------------------------------------------------------------------
+# OOM protection for critical services
+# ---------------------------------------------------------------------------
+SSH_OOM_DIR="/etc/systemd/system/ssh.service.d"
+if [[ ! -f "${SSH_OOM_DIR}/oom.conf" ]]; then
+    mkdir -p "$SSH_OOM_DIR"
+    cat > "${SSH_OOM_DIR}/oom.conf" << 'EOF'
+[Service]
+OOMScoreAdjust=-900
+EOF
+    log "OOM protection set for SSH (score -900)"
+else
+    skip "SSH OOM protection already configured"
+fi
+
+DOCKER_OOM_DIR="/etc/systemd/system/docker.service.d"
+if [[ ! -f "${DOCKER_OOM_DIR}/oom.conf" ]]; then
+    mkdir -p "$DOCKER_OOM_DIR"
+    cat > "${DOCKER_OOM_DIR}/oom.conf" << 'EOF'
+[Service]
+OOMScoreAdjust=-500
+EOF
+    log "OOM protection set for Docker (score -500)"
+else
+    skip "Docker OOM protection already configured"
+fi
+
+systemctl daemon-reload
+
+# ---------------------------------------------------------------------------
+# Automatic security updates (unattended-upgrades)
+# ---------------------------------------------------------------------------
+if ! dpkg -l unattended-upgrades 2>/dev/null | grep -q "^ii"; then
+    apt-get install -y -qq unattended-upgrades
+fi
+
+UNATTENDED_CONF="/etc/apt/apt.conf.d/50unattended-upgrades"
+if [[ ! -f "$UNATTENDED_CONF" ]] || ! grep -q "Package-Blacklist" "$UNATTENDED_CONF" 2>/dev/null; then
+    cat > "$UNATTENDED_CONF" << 'EOF'
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}-security";
+};
+// Exclude Docker and NVIDIA packages from auto-updates
+Unattended-Upgrade::Package-Blacklist {
+    "docker*";
+    "nvidia*";
+    "libnvidia*";
+};
+EOF
+    systemctl enable --now unattended-upgrades
+    log "Automatic security updates configured (Docker/NVIDIA excluded)"
+else
+    skip "Unattended-upgrades already configured"
+fi
+
+log "System optimization complete"
+log "Free RAM: $(free -h | awk '/^Mem:/{print $7}')"

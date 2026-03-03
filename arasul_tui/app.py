@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -209,16 +210,7 @@ def run() -> None:
         if len(command) == 1 and command.lower() in ("c", "x") and state.active_project:
             handled, launch_cmd = _handle_action_shortcut(state, command.lower())
             if handled and launch_cmd:
-                import subprocess
-
-                binary = subprocess.run(
-                    f"command -v {launch_cmd}",
-                    shell=True,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-                if binary.returncode != 0:
+                if not shutil.which(launch_cmd):
                     from arasul_tui.core.ui import print_error
 
                     print_error(f"[bold]{launch_cmd}[/bold] not found.")

@@ -1,35 +1,33 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 03 — SSH-Härtung
-# Key-Only Auth, Root-Login deaktivieren, fail2ban
-# WICHTIG: SSH-Key muss vorher kopiert sein!
+# 03 — SSH Hardening
+# Key-only auth, disable root login, fail2ban with recidive jail
+# IMPORTANT: SSH key must be copied first!
 # =============================================================================
 set -euo pipefail
 
-log()  { echo -e "\033[0;32m[✓]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-err()  { echo -e "\033[0;31m[✗]\033[0m $*"; }
-skip() { echo -e "\033[1;33m[→]\033[0m $* (bereits erledigt)"; }
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Sicherheitsprüfung: SSH-Keys vorhanden?
+# Safety check: SSH keys present?
 # ---------------------------------------------------------------------------
 AUTH_KEYS="${REAL_HOME}/.ssh/authorized_keys"
 if [[ ! -f "$AUTH_KEYS" ]] || [[ ! -s "$AUTH_KEYS" ]]; then
-    err "Keine SSH authorized_keys für ${REAL_USER} gefunden!"
+    err "No SSH authorized_keys found for ${REAL_USER}!"
     err ""
-    err "Zuerst SSH-Key kopieren:"
+    err "Copy your SSH key first:"
     err "  ssh-copy-id -i ~/.ssh/id_ed25519.pub ${REAL_USER}@${JETSON_HOSTNAME}.local"
     err ""
-    err "SSH-Härtung übersprungen um Aussperrung zu verhindern"
+    err "SSH hardening skipped to prevent lockout"
     exit 2
 fi
 
 KEY_COUNT=$(wc -l < "$AUTH_KEYS")
-log "${KEY_COUNT} SSH-Key(s) in authorized_keys gefunden"
+log "${KEY_COUNT} SSH key(s) found in authorized_keys"
 
 # ---------------------------------------------------------------------------
-# SSH-Daemon härten
+# Harden SSH daemon
 # ---------------------------------------------------------------------------
 SSHD_DROPIN="/etc/ssh/sshd_config.d/99-jetson-hardened.conf"
 
@@ -52,18 +50,18 @@ EOF
 
     if sshd -t 2>/dev/null; then
         systemctl restart sshd
-        log "SSH gehärtet: Passwort-Auth deaktiviert, Root-Login deaktiviert"
+        log "SSH hardened: password auth disabled, root login disabled"
     else
-        err "SSH-Konfiguration ungültig — wird zurückgesetzt"
+        err "SSH configuration invalid — reverting"
         rm -f "$SSHD_DROPIN"
         exit 1
     fi
 else
-    skip "SSH bereits gehärtet"
+    skip "SSH already hardened"
 fi
 
 # ---------------------------------------------------------------------------
-# fail2ban
+# fail2ban with recidive jail
 # ---------------------------------------------------------------------------
 if ! dpkg -l fail2ban 2>/dev/null | grep -q "^ii"; then
     apt-get install -y -qq fail2ban
@@ -80,13 +78,37 @@ port     = ssh
 logpath  = %(sshd_log)s
 backend  = systemd
 maxretry = 3
+
+[recidive]
+enabled  = true
+logpath  = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+bantime  = 1w
+findtime = 1d
+maxretry = 5
 EOF
 
     systemctl enable --now fail2ban
-    log "fail2ban installiert (3 Versuche → 1h Sperre)"
+    log "fail2ban installed (3 attempts → 1h ban, repeat offenders → 1 week ban)"
 else
-    skip "fail2ban bereits installiert"
+    # Ensure recidive jail exists even if fail2ban was already installed
+    if [[ -f /etc/fail2ban/jail.local ]] && ! grep -q "recidive" /etc/fail2ban/jail.local 2>/dev/null; then
+        cat >> /etc/fail2ban/jail.local << 'EOF'
+
+[recidive]
+enabled  = true
+logpath  = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+bantime  = 1w
+findtime = 1d
+maxretry = 5
+EOF
+        systemctl restart fail2ban
+        log "Recidive jail added to fail2ban"
+    else
+        skip "fail2ban already installed"
+    fi
 fi
 
-log "SSH-Härtung abgeschlossen"
-warn "SSH-Key-Login von deinem Mac testen bevor du diese Session schließt!"
+log "SSH hardening complete"
+warn "Test SSH key login from your Mac before closing this session!"

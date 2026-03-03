@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import shlex
 import shutil
 import socket
 import subprocess
@@ -18,13 +19,14 @@ from arasul_tui.core.browser import (
     install_browser,
     is_mcp_configured,
 )
-from arasul_tui.core.projects import register_project
+from arasul_tui.core.projects import register_project, unregister_project
+from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
-    _content_pad,
-    _get_default_interface,
     console,
+    content_pad,
+    get_default_interface,
     print_error,
     print_info,
     print_kv,
@@ -33,22 +35,6 @@ from arasul_tui.core.ui import (
     print_warning,
     spinner_run,
 )
-
-
-def _run(cmd: str, timeout: int = 4) -> str:
-    try:
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        out = (proc.stdout or proc.stderr or "").strip()
-        return out
-    except Exception as exc:
-        return f"Error: {exc}"
 
 
 def _project_root(state: TuiState) -> Path | None:
@@ -73,7 +59,7 @@ def _project_dirs(root: Path) -> list[Path]:
 
 
 def cmd_help(_: TuiState, __: list[str]) -> CommandResult:
-    pad = _content_pad()
+    pad = content_pad()
     console.print()
     console.print(f"{pad}[bold]Shortcuts[/bold]", highlight=False)
     console.print(f"{pad}[cyan]1-9[/cyan]  [dim]Select project by number[/dim]", highlight=False)
@@ -117,14 +103,14 @@ def cmd_status(state: TuiState, _: list[str]) -> CommandResult:
     mins = rem // 60
     uptime = f"{hours}h {mins}m" if hours else f"{mins}m"
 
-    iface = _get_default_interface()
-    ip = _run(f"ip -4 addr show {iface} | awk '/inet/{{print $2}}' | cut -d/ -f1")
+    iface = get_default_interface()
+    ip = run_cmd(f"ip -4 addr show {shlex.quote(iface)} | awk '/inet/{{print $2}}' | cut -d/ -f1")
     if not ip or ip.startswith("Error"):
-        ip = _run("hostname -I | awk '{print $1}'") or "n/a"
-    power = _run("sudo nvpmodel -q | head -1 | sed 's/NV Power Mode: //'") or "n/a"
-    temp = _run("cat /sys/devices/virtual/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'")
+        ip = run_cmd("hostname -I | awk '{print $1}'") or "n/a"
+    power = run_cmd("sudo nvpmodel -q | head -1 | sed 's/NV Power Mode: //'") or "n/a"
+    temp = run_cmd("cat /sys/devices/virtual/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'")
     temp_str = f"{temp}°C" if temp and temp.isdigit() else "n/a"
-    docker = _run("docker ps -q 2>/dev/null | wc -l | tr -d ' '") or "0"
+    docker = run_cmd("docker ps -q 2>/dev/null | wc -l | tr -d ' '") or "0"
     root = state.project_root
     project_count = len(_project_dirs(root)) if root.exists() else 0
     project_name = state.active_project.name if state.active_project else "[dim]-[/dim]"
@@ -293,14 +279,7 @@ def _launch_inline(state: TuiState, command: str) -> CommandResult:
         print_warning("No active project.")
         print_info("Set one with [bold]/open <name>[/bold]")
         return CommandResult(ok=False, style="silent")
-    binary = subprocess.run(
-        ["command", "-v", command],
-        shell=True,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if binary.returncode != 0:
+    if not shutil.which(command):
         print_error(f"Binary not found: [bold]{command}[/bold]")
         return CommandResult(ok=False, style="silent")
     print_info(f"Starting [bold]{command}[/bold] in [dim]{state.active_project}[/dim] ...")
@@ -321,14 +300,14 @@ def _launch_inline(state: TuiState, command: str) -> CommandResult:
 def _git_status_lines() -> list[tuple[str, str]]:
     rows: list[tuple[str, str]] = []
 
-    gh = _run("command -v gh && gh --version | head -1", timeout=3)
+    gh = run_cmd("command -v gh && gh --version | head -1", timeout=3)
     if "gh version" in gh:
         ver = gh.splitlines()[-1].strip()
         rows.append(("gh CLI", f"[green]✓[/green] {ver}"))
     else:
         rows.append(("gh CLI", "[red]✗[/red] not installed"))
 
-    auth = _run("gh auth status 2>&1", timeout=5)
+    auth = run_cmd("gh auth status 2>&1", timeout=5)
     if "Logged in" in auth:
         account = ""
         for line in auth.splitlines():
@@ -343,8 +322,8 @@ def _git_status_lines() -> list[tuple[str, str]]:
     else:
         rows.append(("Auth", "[red]✗[/red] not logged in"))
 
-    name = _run("git config --global user.name")
-    email = _run("git config --global user.email")
+    name = run_cmd("git config --global user.name")
+    email = run_cmd("git config --global user.email")
     rows.append(("Git Name", name or "[dim]not set[/dim]"))
     rows.append(("Git Email", email or "[dim]not set[/dim]"))
 
@@ -354,7 +333,7 @@ def _git_status_lines() -> list[tuple[str, str]]:
     else:
         rows.append(("SSH Key", "[dim]not found[/dim]"))
 
-    ssh_test = _run("ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1", timeout=5)
+    ssh_test = run_cmd("ssh -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1", timeout=5)
     if "successfully authenticated" in ssh_test.lower():
         user = ""
         for part in ssh_test.split():
@@ -365,7 +344,7 @@ def _git_status_lines() -> list[tuple[str, str]]:
     else:
         rows.append(("GitHub SSH", "[dim]not connected[/dim]"))
 
-    cred = _run("git config --global credential.helper")
+    cred = run_cmd("git config --global credential.helper")
     if cred:
         rows.append(("Credentials", f"[green]✓[/green] {cred}"))
 
@@ -373,9 +352,9 @@ def _git_status_lines() -> list[tuple[str, str]]:
 
 
 def _git_install_gh() -> tuple[bool, str]:
-    check = _run("command -v gh", timeout=2)
+    check = run_cmd("command -v gh", timeout=2)
     if check and "gh" in check:
-        ver = _run("gh --version | head -1", timeout=3)
+        ver = run_cmd("gh --version | head -1", timeout=3)
         return True, ver or "installed"
 
     def _do_install() -> str:
@@ -391,13 +370,13 @@ def _git_install_gh() -> tuple[bool, str]:
             "sudo apt-get update -qq && "
             "sudo apt-get install -y -qq gh"
         )
-        return _run(install_cmd, timeout=120)
+        return run_cmd(install_cmd, timeout=120)
 
     spinner_run("Installing gh CLI...", _do_install)
 
-    check2 = _run("command -v gh", timeout=2)
+    check2 = run_cmd("command -v gh", timeout=2)
     if check2 and "gh" in check2:
-        ver = _run("gh --version | head -1", timeout=3)
+        ver = run_cmd("gh --version | head -1", timeout=3)
         return True, ver or "installed"
     return False, "Installation failed"
 
@@ -410,7 +389,7 @@ def _git_setup_known_hosts() -> None:
     except OSError:
         existing = ""
     if "github.com" not in existing:
-        _run("ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null", timeout=10)
+        run_cmd("ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null", timeout=10)
 
 
 def _git_wizard_start(state: TuiState, user_input: str) -> CommandResult:
@@ -425,10 +404,10 @@ def _git_wizard_start(state: TuiState, user_input: str) -> CommandResult:
 
     _git_setup_known_hosts()
 
-    auth_check = _run("gh auth status 2>&1", timeout=5)
+    auth_check = run_cmd("gh auth status 2>&1", timeout=5)
     if "Logged in" in auth_check:
         print_success("Already authenticated!")
-        _run("gh auth setup-git", timeout=5)
+        run_cmd("gh auth setup-git", timeout=5)
         print_success("Git credential helper configured")
         console.print()
         print_kv(_git_status_lines(), title="GitHub Status")
@@ -436,7 +415,7 @@ def _git_wizard_start(state: TuiState, user_input: str) -> CommandResult:
 
     print_step(2, 3, "GitHub Setup")
 
-    pad = _content_pad()
+    pad = content_pad()
     print_info("Create a Personal Access Token (classic):")
     console.print()
     console.print(f"{pad}[cyan bold]https://github.com/settings/tokens/new[/cyan bold]", highlight=False)
@@ -482,7 +461,7 @@ def _git_wizard_auth_token(state: TuiState, user_input: str) -> CommandResult:
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "").strip()[:150]
         print_error(f"Failed: [dim]{err}[/dim]")
-        console.print(f"{_content_pad()}[dim]Check your token and try again.[/dim]", highlight=False)
+        console.print(f"{content_pad()}[dim]Check your token and try again.[/dim]", highlight=False)
         return CommandResult(
             ok=False,
             style="silent",
@@ -491,9 +470,9 @@ def _git_wizard_auth_token(state: TuiState, user_input: str) -> CommandResult:
             wizard_step=(2, 3, "Token"),
         )
 
-    _run("gh auth setup-git", timeout=5)
+    run_cmd("gh auth setup-git", timeout=5)
 
-    auth_check = _run("gh auth status 2>&1", timeout=5)
+    auth_check = run_cmd("gh auth status 2>&1", timeout=5)
     account = ""
     for line in auth_check.splitlines():
         if "account" in line.lower():
@@ -510,7 +489,7 @@ def _git_wizard_auth_token(state: TuiState, user_input: str) -> CommandResult:
     ssh_key_path = Path.home() / ".ssh" / "id_ed25519.pub"
     if ssh_key_path.exists():
         print_step(3, 3, "GitHub Setup")
-        pad = _content_pad()
+        pad = content_pad()
         print_info("SSH key found. Add it to GitHub?")
         console.print()
         console.print(f"{pad}[bold]y[/bold] [dim]Yes, add SSH key[/dim]", highlight=False)
@@ -536,7 +515,7 @@ def _git_wizard_ssh_key(state: TuiState, user_input: str) -> CommandResult:
         hostname = socket.gethostname()
 
         def _do_add() -> str:
-            return _run(
+            return run_cmd(
                 f'gh ssh-key add ~/.ssh/id_ed25519.pub --title "arasul@{hostname}"',
                 timeout=10,
             )
@@ -548,7 +527,7 @@ def _git_wizard_ssh_key(state: TuiState, user_input: str) -> CommandResult:
         else:
             print_success(f"SSH key added: [dim]arasul@{hostname}[/dim]")
 
-        ssh_test = _run("ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1", timeout=8)
+        ssh_test = run_cmd("ssh -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1", timeout=8)
         if "successfully authenticated" in ssh_test.lower():
             print_success("SSH connection to GitHub: OK")
         else:
@@ -574,7 +553,7 @@ def _git_wizard_ssh_key(state: TuiState, user_input: str) -> CommandResult:
 
 
 def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
-    gh_check = _run("gh auth status 2>&1", timeout=5)
+    gh_check = run_cmd("gh auth status 2>&1", timeout=5)
     if "Logged in" in gh_check:
         print_kv(_git_status_lines(), title="GitHub Status")
         return CommandResult(ok=True, style="silent")
@@ -642,7 +621,7 @@ def _wizard_step_token(state: TuiState, user_input: str) -> CommandResult:
 
     print_step(2, 2, "Claude Setup")
 
-    pad = _content_pad()
+    pad = content_pad()
     print_info("Account info (JSON or UUID)")
     console.print(f"{pad}[dim]Run on your Mac:[/dim]", highlight=False)
     console.print(
@@ -708,7 +687,7 @@ def _wizard_step_account_info(state: TuiState, user_input: str) -> CommandResult
         print_error("That's an email, not a UUID!")
         print_info("Find the UUID on your Mac with:")
         console.print(
-            f"{_content_pad()}[cyan]cat ~/.claude.json | python3 -c \"import json,sys; print(json.load(sys.stdin).get('oauthAccount',{{}}).get('accountUuid','NOT FOUND'))\"[/cyan]",
+            f"{content_pad()}[cyan]cat ~/.claude.json | python3 -c \"import json,sys; print(json.load(sys.stdin).get('oauthAccount',{{}}).get('accountUuid','NOT FOUND'))\"[/cyan]",
             highlight=False,
         )
         return CommandResult(
@@ -761,7 +740,7 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
     choice = user_input.strip()
     if choice == "1":
         print_step(1, 2, "Claude Setup")
-        pad = _content_pad()
+        pad = content_pad()
         print_info("OAuth token from your Mac:")
         console.print(f"{pad}[dim]Run:[/dim] [cyan]claude setup-token[/cyan]", highlight=False)
         console.print(f"{pad}[dim]Copy the token (sk-ant-oat01-...) and paste it here.[/dim]", highlight=False)
@@ -779,7 +758,7 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
             print_error(msg)
             print_info("Install first: [bold]/browser install[/bold]")
             return CommandResult(ok=False, style="silent")
-        pad = _content_pad()
+        pad = content_pad()
         print_info("SSH tunnel method:")
         console.print()
         console.print(f"{pad}[bold]1.[/bold] [dim]Open a new terminal on your Mac[/dim]", highlight=False)
@@ -788,7 +767,7 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
         console.print()
         return CommandResult(ok=True, style="silent")
     if choice == "3":
-        pad = _content_pad()
+        pad = content_pad()
         print_info("SSH tunnel (manual):")
         console.print()
         console.print(f"{pad}[bold]1.[/bold] [dim]Open a new terminal on your Mac[/dim]", highlight=False)
@@ -809,7 +788,7 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
 def cmd_claude(state: TuiState, _: list[str]) -> CommandResult:
     if not is_claude_configured():
         browser_ok, _ = ensure_browser()
-        pad = _content_pad()
+        pad = content_pad()
         print_warning("Claude Code is not configured yet.")
         console.print()
         console.print(f"{pad}[dim]How would you like to log in?[/dim]", highlight=False)
@@ -833,7 +812,7 @@ def cmd_codex(state: TuiState, _: list[str]) -> CommandResult:
 
 
 def cmd_exit(_: TuiState, __: list[str]) -> CommandResult:
-    pad = _content_pad()
+    pad = content_pad()
     console.print(f"{pad}[dim]Goodbye.[/dim]", highlight=False)
     return CommandResult(ok=True, quit_app=True, style="silent")
 
@@ -869,6 +848,9 @@ def _delete_confirm(state: TuiState, user_input: str) -> CommandResult:
 
     if state.active_project and state.active_project.resolve() == target.resolve():
         state.active_project = None
+
+    # Remove from project registry
+    unregister_project(target.name)
 
     print_success(f"Project [bold]{target.name}[/bold] deleted.")
     return CommandResult(ok=True, style="silent", refresh=True)
@@ -915,7 +897,7 @@ def cmd_delete(state: TuiState, args: list[str]) -> CommandResult:
         print_warning("No projects found.")
         return CommandResult(ok=False, style="silent")
 
-    pad = _content_pad()
+    pad = content_pad()
     console.print()
     for i, p in enumerate(projects, 1):
         console.print(f"{pad}[cyan]{i}[/cyan]  {p.name}", highlight=False)

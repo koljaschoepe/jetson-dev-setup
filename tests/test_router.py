@@ -47,3 +47,13 @@ def test_slash_only(state: TuiState):
     result = run_command(state, "/")
     assert result.ok is True
     assert result.style == "silent"
+
+
+def test_parse_error_unmatched_quote(state: TuiState):
+    result = run_command(state, '/open "unclosed')
+    assert result.ok is False
+
+
+def test_prefix_suggestion(state: TuiState):
+    result = run_command(state, "/hel")
+    assert result.ok is False

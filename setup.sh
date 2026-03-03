@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Jetson Orin Nano Super — Automatisiertes Headless Dev-Server Setup
+# Jetson Orin Nano Super — Automated Headless Dev Server Setup
 # =============================================================================
-# Usage: sudo ./setup.sh [--skip-reboot] [--step N]
+# Usage: sudo ./setup.sh [--skip-reboot] [--step N] [--interactive]
 #
-# Voraussetzungen:
-#   1. JetPack 6.2.2 geflasht (SD-Karte oder NVMe via SDK Manager)
-#   2. oem-config abgeschlossen (Erststart-Assistent)
-#   3. SSH-Zugang zum Gerät
-#   4. .env Datei konfiguriert (cp .env.example .env && nano .env)
+# Prerequisites:
+#   1. JetPack 6.2.2 flashed (SD card or NVMe via SDK Manager)
+#   2. oem-config completed (first-boot wizard)
+#   3. SSH access to the device
+#   4. .env file configured (cp .env.example .env && nano .env)
 # =============================================================================
 
 set -euo pipefail
@@ -18,33 +18,23 @@ LOG_DIR="/var/log/jetson-setup"
 SKIP_REBOOT=false
 SINGLE_STEP=""
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-log()  { echo -e "${GREEN}[✓]${NC} $*"; }
-warn() { echo -e "${YELLOW}[!]${NC} $*"; }
-err()  { echo -e "${RED}[✗]${NC} $*" >&2; }
-step() { echo -e "\n${BLUE}═══════════════════════════════════════════════${NC}"; echo -e "${BLUE}  $*${NC}"; echo -e "${BLUE}═══════════════════════════════════════════════${NC}\n"; }
-info() { echo -e "${CYAN}[i]${NC} $*"; }
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Konfiguration laden
+# Load configuration
 # ---------------------------------------------------------------------------
 load_config() {
     local env_file="${SCRIPT_DIR}/.env"
 
     if [[ ! -f "$env_file" ]]; then
-        err "Keine .env Datei gefunden!"
+        err "No .env file found!"
         echo ""
-        info "Erstelle eine .env aus der Vorlage:"
+        info "Create one from the template:"
         echo "  cp .env.example .env"
         echo "  nano .env"
         echo ""
-        info "Oder starte den interaktiven Modus:"
+        info "Or start interactive mode:"
         echo "  sudo ./setup.sh --interactive"
         exit 1
     fi
@@ -52,21 +42,21 @@ load_config() {
     # shellcheck source=/dev/null
     source "$env_file"
 
-    # Pflichtfelder prüfen
+    # Validate required fields
     local missing=false
     for var in CUSTOMER_NAME JETSON_USER JETSON_HOSTNAME; do
         if [[ "${!var:-}" == "CHANGEME" ]] || [[ -z "${!var:-}" ]]; then
-            err "Variable $var ist nicht konfiguriert in .env"
+            err "Variable $var is not configured in .env"
             missing=true
         fi
     done
 
     if [[ "$missing" == true ]]; then
-        err "Bitte alle CHANGEME-Werte in .env anpassen"
+        err "Please set all CHANGEME values in .env"
         exit 1
     fi
 
-    # Defaults setzen
+    # Set defaults
     NVME_DEVICE="${NVME_DEVICE:-/dev/nvme0n1}"
     NVME_MOUNT="${NVME_MOUNT:-/mnt/nvme}"
     SWAP_SIZE="${SWAP_SIZE:-32G}"
@@ -81,36 +71,36 @@ load_config() {
     GIT_USER_NAME="${GIT_USER_NAME:-}"
     GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
-    # Abgeleitete Variablen
+    # Derived variables
     REAL_USER="$JETSON_USER"
     REAL_HOME=$(eval echo "~${REAL_USER}")
 }
 
 # ---------------------------------------------------------------------------
-# Interaktiver Modus: .env generieren
+# Interactive mode: generate .env
 # ---------------------------------------------------------------------------
 interactive_config() {
     echo ""
     echo -e "${CYAN}╔═══════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  Jetson Dev Setup — Interaktive Konfiguration     ║${NC}"
+    echo -e "${CYAN}║  Jetson Dev Setup — Interactive Configuration      ║${NC}"
     echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
 
     local env_file="${SCRIPT_DIR}/.env"
 
-    read -rp "Kundenname / Projektname: " i_customer
-    read -rp "Jetson Benutzername: " i_user
+    read -rp "Customer / Project name: " i_customer
+    read -rp "Jetson username: " i_user
     read -rp "Hostname [jetson]: " i_hostname
     i_hostname="${i_hostname:-jetson}"
-    read -rp "Swap-Größe [32G]: " i_swap
+    read -rp "Swap size [32G]: " i_swap
     i_swap="${i_swap:-32G}"
-    read -rp "Tailscale installieren? (true/false) [false]: " i_tailscale
+    read -rp "Install Tailscale? (true/false) [false]: " i_tailscale
     i_tailscale="${i_tailscale:-false}"
-    read -rp "Git Name: " i_git_name
-    read -rp "Git Email: " i_git_email
-    read -rp "Claude Code installieren? (true/false) [true]: " i_claude
+    read -rp "Git name: " i_git_name
+    read -rp "Git email: " i_git_email
+    read -rp "Install Claude Code? (true/false) [true]: " i_claude
     i_claude="${i_claude:-true}"
-    read -rp "Arasul TUI installieren? (true/false) [true]: " i_tui
+    read -rp "Install Arasul TUI? (true/false) [true]: " i_tui
     i_tui="${i_tui:-true}"
 
     cp "${SCRIPT_DIR}/.env.example" "$env_file"
@@ -124,38 +114,30 @@ interactive_config() {
     sed -i "s/INSTALL_CLAUDE=\"true\"/INSTALL_CLAUDE=\"${i_claude}\"/" "$env_file"
     sed -i "s/INSTALL_ARASUL_TUI=\"true\"/INSTALL_ARASUL_TUI=\"${i_tui}\"/" "$env_file"
 
-    log ".env Datei erstellt: ${env_file}"
+    log ".env file created: ${env_file}"
     echo ""
 }
 
 # ---------------------------------------------------------------------------
-# Prüfungen
+# Pre-flight checks
 # ---------------------------------------------------------------------------
-check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        err "Dieses Script muss mit sudo ausgeführt werden"
-        echo "  sudo ./setup.sh"
-        exit 1
-    fi
-}
-
 check_jetson() {
     if [[ -f /etc/nv_tegra_release ]]; then
         local l4t_version
         l4t_version=$(head -1 /etc/nv_tegra_release | sed 's/.*R\([0-9]*\).*/\1/')
-        log "Jetson erkannt (L4T R${l4t_version})"
+        log "Jetson detected (L4T R${l4t_version})"
     elif [[ -d /proc/device-tree ]] && grep -q "nvidia" /proc/device-tree/compatible 2>/dev/null; then
-        log "Jetson-Plattform erkannt"
+        log "Jetson platform detected"
     else
-        err "Dies scheint kein Jetson-Gerät zu sein"
+        err "This does not appear to be a Jetson device"
         exit 1
     fi
 }
 
 check_user_exists() {
     if ! id "$REAL_USER" &>/dev/null; then
-        err "Benutzer '${REAL_USER}' existiert nicht auf diesem System"
-        err "Bitte JETSON_USER in .env korrigieren"
+        err "User '${REAL_USER}' does not exist on this system"
+        err "Please fix JETSON_USER in .env"
         exit 1
     fi
 }
@@ -169,7 +151,7 @@ setup_logging() {
 }
 
 # ---------------------------------------------------------------------------
-# Argumente parsen
+# Parse arguments
 # ---------------------------------------------------------------------------
 INTERACTIVE=false
 parse_args() {
@@ -179,32 +161,32 @@ parse_args() {
             --step)          SINGLE_STEP="$2"; shift 2 ;;
             --interactive)   INTERACTIVE=true; shift ;;
             -h|--help)
-                echo "Usage: sudo ./setup.sh [OPTIONEN]"
+                echo "Usage: sudo ./setup.sh [OPTIONS]"
                 echo ""
-                echo "Optionen:"
-                echo "  --interactive    Interaktiver Modus (.env wird generiert)"
-                echo "  --skip-reboot    Kein Reboot nach Setup"
-                echo "  --step N         Nur Schritt N ausführen (1-8)"
-                echo "  -h, --help       Diese Hilfe anzeigen"
+                echo "Options:"
+                echo "  --interactive    Interactive mode (generates .env)"
+                echo "  --skip-reboot    No reboot after setup"
+                echo "  --step N         Run only step N (1-8)"
+                echo "  -h, --help       Show this help"
                 echo ""
-                echo "Schritte:"
-                echo "  1  System-Optimierung (GUI deaktivieren, Services)"
-                echo "  2  Netzwerk (Hostname, mDNS)"
-                echo "  3  SSH-Härtung (Key-Only, fail2ban)"
-                echo "  4  NVMe-Setup (Partition, Mount, Swap)"
-                echo "  5  Docker-Konfiguration (NVIDIA Runtime)"
-                echo "  6  Entwicklungstools (Node.js, Python, Claude Code)"
-                echo "  7  Quality of Life (tmux, Aliases, jtop)"
-                echo "  8  Headless Browser (Playwright + Chromium)"
+                echo "Steps:"
+                echo "  1  System optimization (disable GUI, services)"
+                echo "  2  Network (hostname, mDNS, firewall)"
+                echo "  3  SSH hardening (key-only, fail2ban)"
+                echo "  4  NVMe setup (partition, mount, swap)"
+                echo "  5  Docker configuration (NVIDIA Runtime)"
+                echo "  6  Dev tools (Node.js, Python, Claude Code)"
+                echo "  7  Quality of life (tmux, aliases, jtop)"
+                echo "  8  Headless browser (Playwright + Chromium)"
                 exit 0
                 ;;
-            *) err "Unbekannte Option: $1"; exit 1 ;;
+            *) err "Unknown option: $1"; exit 1 ;;
         esac
     done
 }
 
 # ---------------------------------------------------------------------------
-# Script ausführen
+# Run a setup script
 # ---------------------------------------------------------------------------
 run_script() {
     local num="$1"
@@ -212,30 +194,31 @@ run_script() {
     local script="${SCRIPT_DIR}/scripts/${num}-${name}.sh"
 
     if [[ ! -f "$script" ]]; then
-        err "Script nicht gefunden: $script"
+        err "Script not found: $script"
         return 1
     fi
 
-    step "Schritt ${num}: ${name}"
+    step "Step ${num}: ${name}"
 
-    # Alle Konfig-Variablen exportieren für Subscripts
+    # Export all config variables for subscripts
     export REAL_USER REAL_HOME NVME_DEVICE NVME_MOUNT SWAP_SIZE
     export INSTALL_TAILSCALE INSTALL_CLAUDE INSTALL_OLLAMA
     export INSTALL_ARASUL_TUI
     export NODE_VERSION POWER_MODE JETSON_HOSTNAME CUSTOMER_NAME
     export GIT_USER_NAME GIT_USER_EMAIL
     export DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILES
+    export STATIC_IP STATIC_GATEWAY
     export SCRIPT_DIR
 
     if bash "$script"; then
-        log "Schritt ${num} erfolgreich abgeschlossen"
+        log "Step ${num} completed successfully"
     else
         local rc=$?
         if [[ $rc -eq 2 ]]; then
-            warn "Schritt ${num} übersprungen (bereits konfiguriert)"
+            warn "Step ${num} skipped (already configured)"
         else
-            err "Schritt ${num} fehlgeschlagen (Exit Code: ${rc})"
-            err "Logs prüfen: ${LOG_DIR}/"
+            err "Step ${num} failed (exit code: ${rc})"
+            err "Check logs: ${LOG_DIR}/"
             exit 1
         fi
     fi
@@ -260,7 +243,7 @@ echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║  Jetson Orin Nano Super — Headless Dev Server Setup          ║"
 echo "╠═══════════════════════════════════════════════════════════════╣"
-echo "║  Kunde:    ${CUSTOMER_NAME}"
+echo "║  Customer: ${CUSTOMER_NAME}"
 echo "║  User:     ${REAL_USER}"
 echo "║  Home:     ${REAL_HOME}"
 echo "║  Hostname: ${JETSON_HOSTNAME}"
@@ -279,7 +262,7 @@ if [[ -n "$SINGLE_STEP" ]]; then
         6) run_script "06" "devtools-setup" ;;
         7) run_script "07" "quality-of-life" ;;
         8) run_script "08" "browser-setup" ;;
-        *) err "Ungültiger Schritt: $SINGLE_STEP (muss 1-8 sein)"; exit 1 ;;
+        *) err "Invalid step: $SINGLE_STEP (must be 1-8)"; exit 1 ;;
     esac
 else
     run_script "01" "system-optimize"
@@ -289,8 +272,8 @@ else
     if lsblk "$NVME_DEVICE" &>/dev/null 2>&1; then
         run_script "04" "nvme-setup"
     else
-        warn "Kein NVMe-Gerät bei ${NVME_DEVICE} gefunden — NVMe-Setup übersprungen"
-        warn "Später ausführen: sudo ./setup.sh --step 4"
+        warn "No NVMe device found at ${NVME_DEVICE} — skipping NVMe setup"
+        warn "Run later: sudo ./setup.sh --step 4"
         NVME_MOUNT=""
     fi
 
@@ -302,16 +285,16 @@ fi
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║  ✅ Setup abgeschlossen!                                     ║"
+echo "║  Setup complete!                                             ║"
 echo "╠═══════════════════════════════════════════════════════════════╣"
-echo "║  Nächste Schritte:                                           ║"
-echo "║  1. Mac SSH-Config einrichten (siehe config/mac-ssh-config)  ║"
-echo "║  2. Neustart: sudo reboot                                   ║"
-echo "║  3. Verbinden: ssh ${JETSON_HOSTNAME}"
-echo "║  4. Arbeiten: t → claude                                    ║"
+echo "║  Next steps:                                                 ║"
+echo "║  1. Set up Mac SSH config (see config/mac-ssh-config)       ║"
+echo "║  2. Reboot: sudo reboot                                     ║"
+echo "║  3. Connect: ssh ${JETSON_HOSTNAME}"
+echo "║  4. Work: t → claude                                        ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 
 if [[ "$SKIP_REBOOT" == false ]]; then
     echo ""
-    warn "Neustart empfohlen: sudo reboot"
+    warn "Reboot recommended: sudo reboot"
 fi

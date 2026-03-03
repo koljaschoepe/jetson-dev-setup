@@ -5,9 +5,10 @@ import os
 import subprocess
 from pathlib import Path
 
+from arasul_tui.core.constants import CLAUDE_JSON
+
 NVME_BROWSER_CACHE = Path("/mnt/nvme/playwright-browsers")
 FALLBACK_BROWSER_CACHE = Path.home() / ".cache" / "ms-playwright"
-CLAUDE_JSON = Path.home() / ".claude.json"
 
 
 def _browsers_path() -> Path:
@@ -48,7 +49,7 @@ def is_chromium_installed() -> bool:
 def ensure_browser() -> tuple[bool, str]:
     """Check if headless browser stack is ready. Returns (ok, message)."""
     if not is_playwright_installed():
-        return False, "Playwright not installed. Run /browser install."
+        return False, "Playwright not installed. Run: pip install arasul[browser]"
     if not is_chromium_installed():
         return False, "Chromium not found. Run /browser install."
     return True, "Playwright + Chromium ready."

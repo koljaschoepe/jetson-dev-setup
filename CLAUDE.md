@@ -44,26 +44,40 @@ Scripts read variables via exported environment variables from `setup.sh`.
 ├── CLAUDE.md           # This file
 ├── README.md           # Setup guide
 ├── setup.sh            # Main orchestrator (sources .env)
+├── lib/
+│   └── common.sh       # Shared shell library (log, err, check_root, etc.)
 ├── arasul_tui/
 │   ├── app.py          # TUI application
 │   ├── commands.py     # Slash commands
 │   ├── install.sh      # Installer (venv + launcher)
-│   └── core/           # Router, Registry, Projects, State, Auth, Browser, UI
+│   └── core/
+│       ├── auth.py     # Claude OAuth token management
+│       ├── browser.py  # Playwright/headless browser management
+│       ├── constants.py # Shared constants (CLAUDE_JSON path)
+│       ├── projects.py # YAML project registry CRUD
+│       ├── registry.py # Command registry
+│       ├── router.py   # Command routing and dispatch
+│       ├── shell.py    # Subprocess helper (run_cmd)
+│       ├── state.py    # TUI state dataclass
+│       ├── types.py    # CommandResult and type definitions
+│       └── ui.py       # Rich-based UI rendering
 ├── tests/              # Pytest test suite
 ├── scripts/
 │   ├── 01-system-optimize.sh   # Disable GUI, services, tune kernel
-│   ├── 02-network-setup.sh     # Hostname, mDNS, optional Tailscale
-│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban
-│   ├── 04-nvme-setup.sh        # Partition, format, mount, swap
+│   ├── 02-network-setup.sh     # Hostname, mDNS, UFW firewall, optional Tailscale
+│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban (sshd + recidive)
+│   ├── 04-nvme-setup.sh        # Partition, mount, swap, I/O scheduler, crons
 │   ├── 05-docker-setup.sh      # Docker, NVIDIA Runtime, Compose
 │   ├── 06-devtools-setup.sh    # Node.js, Python, Git, Claude Code
 │   ├── 07-quality-of-life.sh   # tmux, aliases, MOTD
 │   └── 08-browser-setup.sh     # Playwright + headless Chromium
 ├── config/
-│   ├── daemon.json.template    # Docker daemon template
 │   ├── tmux.conf               # tmux configuration
 │   ├── bash_aliases            # Shell aliases
 │   └── mac-ssh-config          # SSH config template for Mac
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # CI (ruff, shellcheck, pytest)
 └── agents/
     └── README.md               # Claude Code agent patterns
 ```
@@ -91,6 +105,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
   - `/claude` — Start Claude Code (with OAuth setup wizard)
   - `/codex` — Start Codex
   - `/git` — GitHub CLI setup wizard
+  - `/delete` — Delete project (interactive)
   - `/browser status|test|install|mcp` — Headless browser management
   - `/help`, `/exit`
 

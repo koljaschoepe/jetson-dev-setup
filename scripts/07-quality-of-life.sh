@@ -1,68 +1,53 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 07 — Quality of Life
-# tmux, Shell-Aliases, Power-Mode, MOTD, Bash-Prompt
+# tmux, shell aliases, power mode, MOTD, bash prompt
 # =============================================================================
 set -euo pipefail
 
-log()  { echo -e "\033[0;32m[✓]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-skip() { echo -e "\033[1;33m[→]\033[0m $* (bereits erledigt)"; }
-
-run_as_user() {
-    sudo -u "$REAL_USER" -H bash -c "$*"
-}
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
 # tmux
 # ---------------------------------------------------------------------------
 if ! command -v tmux &>/dev/null; then
     apt-get install -y -qq tmux
-    log "tmux installiert"
+    log "tmux installed"
 else
-    skip "tmux bereits installiert"
+    skip "tmux already installed"
 fi
 
 TMUX_CONF="${REAL_HOME}/.tmux.conf"
 if [[ -f "${SCRIPT_DIR}/config/tmux.conf" ]]; then
     cp "${SCRIPT_DIR}/config/tmux.conf" "$TMUX_CONF"
     chown "${REAL_USER}:${REAL_USER}" "$TMUX_CONF"
-    log "tmux-Konfiguration installiert"
+    log "tmux configuration installed"
 fi
 
 # tmux Plugin Manager
 TPM_DIR="${REAL_HOME}/.tmux/plugins/tpm"
 if [[ ! -d "$TPM_DIR" ]]; then
     run_as_user "git clone https://github.com/tmux-plugins/tpm '${TPM_DIR}'" 2>/dev/null || true
-    log "tmux Plugin Manager installiert (Ctrl-a I für Plugins)"
+    log "tmux Plugin Manager installed (Ctrl-a I to install plugins)"
 fi
 
 # ---------------------------------------------------------------------------
-# Shell-Aliases
+# Shell aliases
 # ---------------------------------------------------------------------------
 ALIASES_FILE="${REAL_HOME}/.bash_aliases"
 if [[ -f "${SCRIPT_DIR}/config/bash_aliases" ]]; then
     cp "${SCRIPT_DIR}/config/bash_aliases" "$ALIASES_FILE"
     chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
-    log "Shell-Aliases installiert"
+    log "Shell aliases installed"
 elif ! grep -q "jetson-dev" "$ALIASES_FILE" 2>/dev/null; then
     cat "${SCRIPT_DIR}/config/bash_aliases" >> "$ALIASES_FILE" 2>/dev/null || true
     chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
-    log "Shell-Aliases installiert"
-fi
-
-# zusätzliche Arasul-Aliases ergänzen
-if ! grep -q "alias atui='arasul-shell'" "$ALIASES_FILE" 2>/dev/null; then
-    cat >> "$ALIASES_FILE" << 'ALIASES'
-alias atui='arasul-shell'
-alias as='arasul status'
-alias ah='arasul health'
-ALIASES
-    chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
+    log "Shell aliases installed"
 fi
 
 # ---------------------------------------------------------------------------
-# Bash-Prompt mit Jetson-Kontext
+# Bash prompt with Jetson context
 # ---------------------------------------------------------------------------
 BASHRC="${REAL_HOME}/.bashrc"
 if ! grep -q "jetson-prompt" "$BASHRC" 2>/dev/null; then
@@ -82,49 +67,49 @@ __jetson_ps1() {
 PROMPT_COMMAND='PS1=$(__jetson_ps1)'
 PROMPT
     chown "${REAL_USER}:${REAL_USER}" "$BASHRC"
-    log "Custom Bash-Prompt installiert"
+    log "Custom bash prompt installed"
 fi
 
 # ---------------------------------------------------------------------------
-# Power-Mode setzen
+# Power mode
 # ---------------------------------------------------------------------------
 if command -v nvpmodel &>/dev/null; then
     CURRENT_MODE=$(nvpmodel -q 2>/dev/null | grep "NV Power Mode" | awk -F: '{print $2}' | xargs || true)
     nvpmodel -m "${POWER_MODE}" 2>/dev/null || true
-    log "Power-Mode gesetzt: ${POWER_MODE} (vorher: ${CURRENT_MODE:-unbekannt})"
+    log "Power mode set: ${POWER_MODE} (was: ${CURRENT_MODE:-unknown})"
 fi
 
 # ---------------------------------------------------------------------------
-# MOTD deaktivieren — die Arasul Shell uebernimmt beim SSH-Login
+# Disable MOTD — Arasul Shell takes over on SSH login
 # ---------------------------------------------------------------------------
 chmod -x /etc/update-motd.d/* 2>/dev/null || true
-log "MOTD deaktiviert (Arasul Shell uebernimmt)"
+log "MOTD disabled (Arasul Shell takes over)"
 
-# Arasul Shell auto-start bei SSH-Login
+# Arasul Shell auto-start on SSH login
 if ! grep -q "ARASUL_SHELL_ACTIVE" "$BASHRC" 2>/dev/null; then
     cat >> "$BASHRC" << 'AUTOSTART'
 
-# Auto-start Arasul Shell bei interaktivem SSH-Login
-if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && command -v arasul-shell &>/dev/null; then
+# Auto-start Arasul Shell on interactive SSH login
+if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && command -v arasul &>/dev/null; then
     export ARASUL_SHELL_ACTIVE=1
-    exec arasul-shell
+    exec arasul
 fi
 AUTOSTART
     chown "${REAL_USER}:${REAL_USER}" "$BASHRC"
-    log "Arasul Shell Auto-Start konfiguriert"
+    log "Arasul Shell auto-start configured"
 fi
 
 # ---------------------------------------------------------------------------
-# Arasul TUI installieren (optional)
+# Install Arasul TUI (optional)
 # ---------------------------------------------------------------------------
 if [[ "${INSTALL_ARASUL_TUI:-true}" == "true" ]]; then
     if [[ -d "${SCRIPT_DIR}/arasul_tui" ]] && [[ -f "${SCRIPT_DIR}/pyproject.toml" ]]; then
-        run_as_user "bash '${SCRIPT_DIR}/arasul_tui/install.sh'" && log "Arasul TUI installiert"
+        run_as_user "bash '${SCRIPT_DIR}/arasul_tui/install.sh'" && log "Arasul TUI installed"
     else
-        warn "Arasul TUI Quellen nicht im Repo gefunden - Installation übersprungen"
+        warn "Arasul TUI sources not found in repo — skipping installation"
     fi
 else
-    skip "Arasul TUI Installation deaktiviert"
+    skip "Arasul TUI installation disabled"
 fi
 
-log "Quality-of-Life-Setup abgeschlossen"
+log "Quality of life setup complete"

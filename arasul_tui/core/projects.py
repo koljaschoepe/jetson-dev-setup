@@ -27,7 +27,10 @@ def _ensure_registry() -> None:
 
 def load_registry() -> dict[str, list[dict[str, Any]]]:
     _ensure_registry()
-    data = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8")) or {}
+    try:
+        data = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        data = {}
     projects = data.get("projects", [])
     if not isinstance(projects, list):
         projects = []
@@ -66,8 +69,7 @@ def register_project(
     name: str, path: Path, provider_default: str = "claude", git_remote: str | None = None
 ) -> ProjectRecord:
     reg = load_registry()
-    existing = [p for p in reg["projects"] if p.get("name") == name]
-    created = dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    created = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     record = ProjectRecord(
         name=name,
         path=str(path),
@@ -75,8 +77,18 @@ def register_project(
         created_at=created,
         git_remote=git_remote,
     )
-    if existing:
-        reg["projects"] = [p for p in reg["projects"] if p.get("name") != name]
+    reg["projects"] = [p for p in reg["projects"] if p.get("name") != name]
     reg["projects"].append(asdict(record))
     save_registry(reg)
     return record
+
+
+def unregister_project(name: str) -> bool:
+    """Remove a project from the registry. Returns True if found and removed."""
+    reg = load_registry()
+    before = len(reg["projects"])
+    reg["projects"] = [p for p in reg["projects"] if p.get("name") != name]
+    if len(reg["projects"]) < before:
+        save_registry(reg)
+        return True
+    return False

@@ -2,35 +2,29 @@
 # =============================================================================
 # 08 — Headless Browser Setup (Playwright + Chromium)
 # =============================================================================
-# Installiert Playwright mit Headless Chromium fuer AI Agent Browser-Automation.
-# Wird im Arasul-TUI-venv installiert und auf NVMe gespeichert.
+# Installs Playwright with headless Chromium for AI agent browser automation.
+# Installed in the Arasul TUI venv and cached on NVMe.
 #
-# Idempotent: Kann mehrfach ausgefuehrt werden, ueberspringt bereits erledigte Schritte.
+# Idempotent: can be run multiple times, skips already completed steps.
 # =============================================================================
 
 set -euo pipefail
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log()  { echo -e "${GREEN}[✓]${NC} $*"; }
-warn() { echo -e "${YELLOW}[!]${NC} $*"; }
-err()  { echo -e "${RED}[✗]${NC} $*" >&2; }
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 REAL_USER="${REAL_USER:-$(logname 2>/dev/null || echo "${SUDO_USER:-$USER}")}"
 REAL_HOME=$(eval echo "~${REAL_USER}")
 NVME_MOUNT="${NVME_MOUNT:-/mnt/nvme}"
-VENV_DIR="${REAL_HOME}/venvs/arasul-tui"
+VENV_DIR="${REAL_HOME}/venvs/arasul"
 BROWSER_CACHE="${NVME_MOUNT}/playwright-browsers"
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
 if [[ ! -d "$VENV_DIR" ]]; then
-    err "Arasul TUI venv nicht gefunden: ${VENV_DIR}"
-    err "Bitte zuerst arasul_tui/install.sh ausfuehren."
+    err "Arasul TUI venv not found: ${VENV_DIR}"
+    err "Please run arasul_tui/install.sh first."
     exit 1
 fi
 
@@ -38,10 +32,10 @@ VENV_PIP="${VENV_DIR}/bin/pip"
 VENV_PYTHON="${VENV_DIR}/bin/python"
 
 # ---------------------------------------------------------------------------
-# 1. System-Dependencies fuer Chromium (headless)
+# 1. System dependencies for Chromium (headless)
 # ---------------------------------------------------------------------------
 install_system_deps() {
-    log "Installiere System-Dependencies fuer headless Chromium..."
+    log "Installing system dependencies for headless Chromium..."
     apt-get update -qq
     apt-get install -y -qq \
         libnss3 \
@@ -63,37 +57,37 @@ install_system_deps() {
         libasound2 \
         libwayland-client0 \
         > /dev/null 2>&1
-    log "System-Dependencies installiert."
+    log "System dependencies installed."
 }
 
 # ---------------------------------------------------------------------------
-# 2. Playwright Python-Paket installieren
+# 2. Install Playwright Python package
 # ---------------------------------------------------------------------------
 install_playwright_package() {
     if "${VENV_PYTHON}" -c "import playwright" 2>/dev/null; then
         local version
         version=$("${VENV_PYTHON}" -c "import playwright; print(playwright.__version__)" 2>/dev/null)
-        log "Playwright Python bereits installiert (v${version})"
+        log "Playwright Python already installed (v${version})"
         return 0
     fi
 
-    log "Installiere Playwright Python ins venv..."
+    log "Installing Playwright Python into venv..."
     sudo -u "$REAL_USER" "${VENV_PIP}" install --quiet playwright
     local version
     version=$("${VENV_PYTHON}" -c "import playwright; print(playwright.__version__)" 2>/dev/null)
-    log "Playwright v${version} installiert."
+    log "Playwright v${version} installed."
 }
 
 # ---------------------------------------------------------------------------
-# 3. Browser-Cache auf NVMe einrichten
+# 3. Set up browser cache on NVMe
 # ---------------------------------------------------------------------------
 setup_browser_cache() {
     if [[ -d "$BROWSER_CACHE" ]]; then
-        log "Browser-Cache existiert bereits: ${BROWSER_CACHE}"
+        log "Browser cache already exists: ${BROWSER_CACHE}"
         return 0
     fi
 
-    log "Erstelle Browser-Cache auf NVMe: ${BROWSER_CACHE}"
+    log "Creating browser cache on NVMe: ${BROWSER_CACHE}"
     mkdir -p "$BROWSER_CACHE"
     chown "${REAL_USER}:${REAL_USER}" "$BROWSER_CACHE"
 
@@ -101,12 +95,12 @@ setup_browser_cache() {
     if ! grep -q "PLAYWRIGHT_BROWSERS_PATH" "$bashrc" 2>/dev/null; then
         echo "" >> "$bashrc"
         echo "export PLAYWRIGHT_BROWSERS_PATH=\"${BROWSER_CACHE}\"" >> "$bashrc"
-        log "PLAYWRIGHT_BROWSERS_PATH in .bashrc eingetragen."
+        log "PLAYWRIGHT_BROWSERS_PATH added to .bashrc."
     fi
 }
 
 # ---------------------------------------------------------------------------
-# 4. Chromium herunterladen
+# 4. Download Chromium
 # ---------------------------------------------------------------------------
 install_chromium() {
     export PLAYWRIGHT_BROWSERS_PATH="$BROWSER_CACHE"
@@ -114,19 +108,19 @@ install_chromium() {
     local chromium_dir
     chromium_dir=$(find "$BROWSER_CACHE" -maxdepth 2 -name "chrome" -type f 2>/dev/null | head -1)
     if [[ -n "$chromium_dir" ]]; then
-        log "Chromium bereits heruntergeladen in ${BROWSER_CACHE}"
+        log "Chromium already downloaded in ${BROWSER_CACHE}"
         return 0
     fi
 
-    log "Lade Chromium herunter (ARM64, ~180MB)..."
+    log "Downloading Chromium (ARM64, ~180MB)..."
     sudo -u "$REAL_USER" \
         PLAYWRIGHT_BROWSERS_PATH="$BROWSER_CACHE" \
         "${VENV_PYTHON}" -m playwright install chromium
-    log "Chromium heruntergeladen nach ${BROWSER_CACHE}"
+    log "Chromium downloaded to ${BROWSER_CACHE}"
 }
 
 # ---------------------------------------------------------------------------
-# 5. MCP-Config fuer Claude Code einrichten
+# 5. Set up MCP config for Claude Code
 # ---------------------------------------------------------------------------
 setup_mcp_config() {
     local claude_json="${REAL_HOME}/.claude.json"
@@ -142,11 +136,11 @@ try:
 except:
     sys.exit(1)
 " 2>/dev/null; then
-        log "Playwright MCP bereits in claude.json konfiguriert."
+        log "Playwright MCP already configured in claude.json."
         return 0
     fi
 
-    log "Konfiguriere Playwright MCP Server in claude.json..."
+    log "Configuring Playwright MCP server in claude.json..."
     "${VENV_PYTHON}" - "${claude_json}" "${BROWSER_CACHE}" <<'PYEOF'
 import json, sys
 
@@ -176,16 +170,16 @@ with open(claude_json_path, "w") as f:
 PYEOF
 
     chown "${REAL_USER}:${REAL_USER}" "$claude_json"
-    log "Playwright MCP Server konfiguriert."
+    log "Playwright MCP server configured."
 }
 
 # ---------------------------------------------------------------------------
-# 6. Verifikation
+# 6. Verification
 # ---------------------------------------------------------------------------
 verify_installation() {
     export PLAYWRIGHT_BROWSERS_PATH="$BROWSER_CACHE"
 
-    log "Verifiziere Installation..."
+    log "Verifying installation..."
     if sudo -u "$REAL_USER" \
         PLAYWRIGHT_BROWSERS_PATH="$BROWSER_CACHE" \
         "${VENV_PYTHON}" -c "
@@ -199,9 +193,9 @@ with sync_playwright() as p:
     assert 'Arasul Browser OK' in title
 print('OK')
 " 2>/dev/null; then
-        log "Headless Chromium funktioniert einwandfrei."
+        log "Headless Chromium is working correctly."
     else
-        err "Verifikation fehlgeschlagen. Manuell pruefen:"
+        err "Verification failed. Try manually:"
         err "  PLAYWRIGHT_BROWSERS_PATH=${BROWSER_CACHE} ${VENV_PYTHON} -m playwright install chromium --with-deps"
         exit 1
     fi
@@ -213,7 +207,7 @@ print('OK')
 echo ""
 echo "╔═══════════════════════════════════════════════╗"
 echo "║  08 — Headless Browser Setup                  ║"
-echo "║  Playwright + Chromium fuer AI Agents          ║"
+echo "║  Playwright + Chromium for AI Agents           ║"
 echo "╚═══════════════════════════════════════════════╝"
 echo ""
 
@@ -225,8 +219,8 @@ setup_mcp_config
 verify_installation
 
 echo ""
-log "Browser-Setup abgeschlossen."
+log "Browser setup complete."
 log "  Cache: ${BROWSER_CACHE}"
-log "  MCP:   Playwright MCP Server in ~/.claude.json"
+log "  MCP:   Playwright MCP server in ~/.claude.json"
 log "  Test:  /browser status (in Arasul TUI)"
 echo ""

@@ -1,37 +1,36 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 04 — NVMe SSD Setup
-# Partitionieren, Formatieren, Mounten, Swap, Verzeichnisstruktur
+# Partition, format, mount, swap, directory structure, I/O scheduler,
+# weekly TRIM, health monitoring, Docker cleanup cron
 # =============================================================================
 set -euo pipefail
 
 NVME_PART="${NVME_DEVICE}p1"
 SWAP_FILE="${NVME_MOUNT}/swapfile"
 
-log()  { echo -e "\033[0;32m[✓]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-err()  { echo -e "\033[0;31m[✗]\033[0m $*"; }
-skip() { echo -e "\033[1;33m[→]\033[0m $* (bereits erledigt)"; }
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# NVMe-Gerät prüfen
+# Check NVMe device
 # ---------------------------------------------------------------------------
 if ! lsblk "$NVME_DEVICE" &>/dev/null 2>&1; then
-    err "NVMe-Gerät nicht gefunden: ${NVME_DEVICE}"
-    err "M.2 2280 PCIe NVMe SSD einbauen und erneut versuchen"
+    err "NVMe device not found: ${NVME_DEVICE}"
+    err "Install M.2 2280 PCIe NVMe SSD and try again"
     exit 1
 fi
 
 NVME_SIZE=$(lsblk -b -d -n -o SIZE "$NVME_DEVICE" | head -1)
 NVME_SIZE_GB=$(( NVME_SIZE / 1073741824 ))
-log "NVMe erkannt: ${NVME_SIZE_GB} GB an ${NVME_DEVICE}"
+log "NVMe detected: ${NVME_SIZE_GB} GB at ${NVME_DEVICE}"
 
 # ---------------------------------------------------------------------------
-# Partitionieren und Formatieren
+# Partition and format
 # ---------------------------------------------------------------------------
 if ! lsblk -f "$NVME_PART" &>/dev/null 2>&1; then
-    warn "Partitioniere ${NVME_DEVICE} — ALLE DATEN WERDEN GELÖSCHT"
-    echo "5 Sekunden warten — Ctrl+C zum Abbrechen..."
+    warn "Partitioning ${NVME_DEVICE} — ALL DATA WILL BE ERASED"
+    echo "Waiting 5 seconds — Ctrl+C to abort..."
     sleep 5
 
     parted -s "$NVME_DEVICE" mklabel gpt
@@ -42,42 +41,42 @@ if ! lsblk -f "$NVME_PART" &>/dev/null 2>&1; then
     sleep 1
 
     mkfs.ext4 -L "jetson-nvme" "$NVME_PART"
-    log "NVMe partitioniert und als ext4 formatiert"
+    log "NVMe partitioned and formatted as ext4"
 else
     FS_TYPE=$(lsblk -f -n -o FSTYPE "$NVME_PART" | head -1)
     if [[ "$FS_TYPE" == "ext4" ]]; then
-        skip "NVMe bereits partitioniert (ext4)"
+        skip "NVMe already partitioned (ext4)"
     else
-        warn "NVMe-Partition existiert aber Dateisystem ist: ${FS_TYPE}"
-        warn "Manuelles Formatieren nötig falls gewünscht"
+        warn "NVMe partition exists but filesystem is: ${FS_TYPE}"
+        warn "Manual formatting required if desired"
     fi
 fi
 
 # ---------------------------------------------------------------------------
-# NVMe mounten
+# Mount NVMe
 # ---------------------------------------------------------------------------
 mkdir -p "$NVME_MOUNT"
 
 if ! mountpoint -q "$NVME_MOUNT"; then
     mount "$NVME_PART" "$NVME_MOUNT"
-    log "NVMe gemountet: ${NVME_MOUNT}"
+    log "NVMe mounted: ${NVME_MOUNT}"
 else
-    skip "NVMe bereits gemountet"
+    skip "NVMe already mounted"
 fi
 
-# fstab-Eintrag (UUID-basiert für Stabilität)
+# fstab entry (UUID-based for stability)
 NVME_UUID=$(blkid -s UUID -o value "$NVME_PART")
 if ! grep -q "$NVME_UUID" /etc/fstab 2>/dev/null; then
-    # Alte gerätepfad-basierte Einträge entfernen
+    # Remove old device-path-based entries
     sed -i "\|${NVME_PART}|d" /etc/fstab 2>/dev/null || true
     echo "UUID=${NVME_UUID}    ${NVME_MOUNT}    ext4    defaults,noatime    0    2" >> /etc/fstab
-    log "fstab aktualisiert (UUID-basiert für Stabilität)"
+    log "fstab updated (UUID-based for stability)"
 fi
 
 chown "${REAL_USER}:${REAL_USER}" "$NVME_MOUNT"
 
 # ---------------------------------------------------------------------------
-# Verzeichnisstruktur
+# Directory structure
 # ---------------------------------------------------------------------------
 DIRS=(
     "${NVME_MOUNT}/projects"
@@ -92,17 +91,18 @@ for dir in "${DIRS[@]}"; do
     if [[ ! -d "$dir" ]]; then
         mkdir -p "$dir"
         chown "${REAL_USER}:${REAL_USER}" "$dir"
-        log "Erstellt: $dir"
+        log "Created: $dir"
     fi
 done
 
 # ---------------------------------------------------------------------------
-# Swap-Datei auf NVMe
+# Swap file on NVMe
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2153
 if [[ ! -f "$SWAP_FILE" ]]; then
-    log "Erstelle ${SWAP_SIZE} Swap auf NVMe..."
+    log "Creating ${SWAP_SIZE} swap on NVMe..."
 
-    # zram-Swap deaktivieren
+    # Disable zram swap
     systemctl disable nvzramconfig 2>/dev/null || true
     swapoff -a 2>/dev/null || true
 
@@ -115,14 +115,67 @@ if [[ ! -f "$SWAP_FILE" ]]; then
         echo "${SWAP_FILE}    none    swap    sw    0    0" >> /etc/fstab
     fi
 
-    log "Swap erstellt und aktiviert: ${SWAP_SIZE}"
+    log "Swap created and activated: ${SWAP_SIZE}"
 else
     if swapon --show | grep -q "$SWAP_FILE"; then
-        skip "Swap bereits aktiv"
+        skip "Swap already active"
     else
         swapon "$SWAP_FILE"
-        log "Swap reaktiviert"
+        log "Swap reactivated"
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# NVMe I/O scheduler (none is optimal for NVMe)
+# ---------------------------------------------------------------------------
+NVME_NAME=$(basename "$NVME_DEVICE")
+echo none > "/sys/block/${NVME_NAME}/queue/scheduler" 2>/dev/null || true
+
+# Persist via udev rule
+UDEV_RULE="/etc/udev/rules.d/60-nvme-scheduler.rules"
+if [[ ! -f "$UDEV_RULE" ]]; then
+    cat > "$UDEV_RULE" << 'EOF'
+ACTION=="add|change", KERNEL=="nvme*", ATTR{queue/scheduler}="none"
+EOF
+    log "NVMe I/O scheduler set to none"
+else
+    skip "NVMe I/O scheduler rule already set"
+fi
+
+# ---------------------------------------------------------------------------
+# Weekly TRIM
+# ---------------------------------------------------------------------------
+systemctl enable --now fstrim.timer 2>/dev/null || true
+log "Weekly TRIM enabled (fstrim.timer)"
+
+# ---------------------------------------------------------------------------
+# NVMe health monitoring cron
+# ---------------------------------------------------------------------------
+HEALTH_CRON="/etc/cron.weekly/nvme-health"
+if [[ ! -f "$HEALTH_CRON" ]]; then
+    cat > "$HEALTH_CRON" << 'EOF'
+#!/bin/bash
+smartctl -a /dev/nvme0 >> /var/log/jetson-setup/nvme-health.log 2>&1
+EOF
+    chmod +x "$HEALTH_CRON"
+    log "Weekly NVMe health check cron installed"
+else
+    skip "NVMe health cron already exists"
+fi
+
+# ---------------------------------------------------------------------------
+# Docker cleanup cron
+# ---------------------------------------------------------------------------
+DOCKER_CRON="/etc/cron.weekly/docker-cleanup"
+if [[ ! -f "$DOCKER_CRON" ]]; then
+    cat > "$DOCKER_CRON" << 'EOF'
+#!/bin/bash
+docker system prune -f --volumes 2>/dev/null || true
+EOF
+    chmod +x "$DOCKER_CRON"
+    log "Weekly Docker cleanup cron installed"
+else
+    skip "Docker cleanup cron already exists"
 fi
 
 # ---------------------------------------------------------------------------
@@ -136,13 +189,13 @@ if [[ ! -L "$LINK" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Zusammenfassung
+# Summary
 # ---------------------------------------------------------------------------
 NVME_FREE=$(df -h "$NVME_MOUNT" | awk 'NR==2{print $4}')
 SWAP_TOTAL=$(free -h | awk '/^Swap:/{print $2}')
 
-log "NVMe-Setup abgeschlossen"
+log "NVMe setup complete"
 log "  Mount:    ${NVME_MOUNT}"
-log "  Frei:     ${NVME_FREE}"
+log "  Free:     ${NVME_FREE}"
 log "  Swap:     ${SWAP_TOTAL}"
-log "  Projekte: ~/projects → ${NVME_MOUNT}/projects"
+log "  Projects: ~/projects → ${NVME_MOUNT}/projects"

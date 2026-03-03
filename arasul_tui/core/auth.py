@@ -4,9 +4,10 @@ import json
 import re
 from pathlib import Path
 
+from arasul_tui.core.constants import CLAUDE_JSON
+
 PROFILE = Path.home() / ".profile"
 BASHRC = Path.home() / ".bashrc"
-CLAUDE_JSON = Path.home() / ".claude.json"
 TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
 TOKEN_PREFIX = "sk-ant-oat01-"
 _EXPORT_RE = re.compile(r'^export\s+CLAUDE_CODE_OAUTH_TOKEN=".*"', re.MULTILINE)

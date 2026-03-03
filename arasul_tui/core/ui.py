@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import subprocess
+import shlex
 import threading
 import time
 from collections.abc import Callable
@@ -19,6 +19,8 @@ from rich.text import Text
 if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
     from arasul_tui.core.types import CommandResult
+
+from arasul_tui.core.shell import run_cmd
 
 console = Console()
 
@@ -41,16 +43,8 @@ ARASUL_TEXT = [
 ]
 
 
-def _quick_run(cmd: str, timeout: int = 3) -> str:
-    try:
-        r = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True, timeout=timeout)
-        return (r.stdout or r.stderr or "").strip()
-    except Exception:
-        return ""
-
-
 def _github_status() -> str:
-    auth = _quick_run("gh auth status 2>&1", timeout=4)
+    auth = run_cmd("gh auth status 2>&1", timeout=4)
     if "Logged in" not in auth:
         return "[dim]not connected[/dim]"
     for line in auth.splitlines():
@@ -62,9 +56,9 @@ def _github_status() -> str:
     return "[green]✓[/green]"
 
 
-def _get_default_interface() -> str:
+def get_default_interface() -> str:
     """Detect primary network interface dynamically."""
-    iface = _quick_run("ip route show default 2>/dev/null | awk '/default/{print $5}'")
+    iface = run_cmd("ip route show default 2>/dev/null | awk '/default/{print $5}'")
     return iface or "eth0"
 
 
@@ -76,22 +70,20 @@ def _system_info() -> list[str]:
         vm = psutil.virtual_memory()
         ram = f"{vm.used // (1024 * 1024)}M / {vm.total // (1024 * 1024)}M"
     except Exception:
-        ram = _quick_run("free -m | awk '/^Mem:/{printf \"%dM / %dM\", $3, $2}'") or "n/a"
+        ram = run_cmd("free -m | awk '/^Mem:/{printf \"%dM / %dM\", $3, $2}'") or "n/a"
 
-    disk = _quick_run("df -h /mnt/nvme 2>/dev/null | awk 'NR==2{print $3\"/\"$2}'")
+    disk = run_cmd("df -h /mnt/nvme 2>/dev/null | awk 'NR==2{print $3\"/\"$2}'")
     if not disk:
-        disk = _quick_run("df -h / | awk 'NR==2{print $3\"/\"$2}'") or "n/a"
+        disk = run_cmd("df -h / | awk 'NR==2{print $3\"/\"$2}'") or "n/a"
 
-    temp = _quick_run(
-        "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'"
-    )
+    temp = run_cmd("cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'")
     temp_str = f"{temp}°C" if temp and temp.isdigit() else ""
 
-    power = _quick_run("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'") or ""
+    power = run_cmd("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'") or ""
 
     power_temp = [p for p in [power, temp_str] if p]
 
-    ip = _quick_run("hostname -I 2>/dev/null | awk '{print $1}'") or "n/a"
+    ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'") or "n/a"
 
     return [
         "Jetson Orin Nano Super",
@@ -117,8 +109,9 @@ def _project_detail(name: str) -> str:
     project = DEFAULT_PROJECT_ROOT / name
     if not (project / ".git").exists():
         return "[dim]local[/dim]"
-    url = _quick_run(f"git -C {project} remote get-url origin 2>/dev/null")
-    branch = _quick_run(f"git -C {project} symbolic-ref --short HEAD 2>/dev/null") or ""
+    quoted = shlex.quote(str(project))
+    url = run_cmd(f"git -C {quoted} remote get-url origin 2>/dev/null")
+    branch = run_cmd(f"git -C {quoted} symbolic-ref --short HEAD 2>/dev/null") or ""
     if not url:
         parts = ["[dim]local[/dim]"]
     elif "github" in url:
@@ -133,11 +126,12 @@ def _project_detail(name: str) -> str:
 def _git_info_short(project: Path | None) -> str:
     if not project or not (project / ".git").exists():
         return ""
-    url = _quick_run(f"git -C {project} remote get-url origin 2>/dev/null")
+    quoted = shlex.quote(str(project))
+    url = run_cmd(f"git -C {quoted} remote get-url origin 2>/dev/null")
     if not url:
         return "[dim]local[/dim]"
     host = "github" if "github" in url else "git"
-    branch = _quick_run(f"git -C {project} symbolic-ref --short HEAD 2>/dev/null")
+    branch = run_cmd(f"git -C {quoted} symbolic-ref --short HEAD 2>/dev/null")
     if branch:
         return f"[dim]{host} · {branch}[/dim]"
     return f"[dim]{host}[/dim]"
@@ -204,7 +198,7 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
 
 def print_header(state: TuiState, full: bool = True) -> None:
     if not full:
-        pad = _content_pad()
+        pad = content_pad()
         w = _adaptive_width() - 6
         parts: list[str] = []
         if state.active_project:
@@ -262,7 +256,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
 
 def print_project_menu(state: TuiState) -> None:
     """Show action menu after selecting a project."""
-    pad = _content_pad()
+    pad = content_pad()
     name = state.active_project.name if state.active_project else "?"
     gi = _git_info_short(state.active_project)
     title_parts = [f"[bold]{name}[/bold]"]
@@ -284,7 +278,7 @@ def print_result(result: CommandResult) -> None:
         return
 
     style = getattr(result, "style", None)
-    pad = _content_pad()
+    pad = content_pad()
 
     if style == "silent":
         return
@@ -315,7 +309,7 @@ def print_result(result: CommandResult) -> None:
 
 
 def print_step(current: int, total: int, title: str) -> None:
-    pad = _content_pad()
+    pad = content_pad()
     w = _adaptive_width() - 6
     title_plain = f" {title} · Step {current}/{total} "
     side = max(1, (w - len(title_plain)) // 2)
@@ -331,22 +325,22 @@ def print_step(current: int, total: int, title: str) -> None:
 
 
 def print_success(msg: str) -> None:
-    pad = _content_pad()
+    pad = content_pad()
     console.print(f"{pad}[green]✓[/green] {msg}", highlight=False)
 
 
 def print_error(msg: str) -> None:
-    pad = _content_pad()
+    pad = content_pad()
     console.print(f"{pad}[red]✗[/red] {msg}", highlight=False)
 
 
 def print_info(msg: str) -> None:
-    pad = _content_pad()
+    pad = content_pad()
     console.print(f"{pad}[cyan]→[/cyan] {msg}", highlight=False)
 
 
 def print_warning(msg: str) -> None:
-    pad = _content_pad()
+    pad = content_pad()
     console.print(f"{pad}[yellow]![/yellow] {msg}", highlight=False)
 
 
@@ -358,23 +352,6 @@ def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
     table.add_column()
     for k, v in data:
         table.add_row(k, v)
-    if title:
-        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1), width=w)
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(p, highlight=False)
-    else:
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(table, highlight=False)
-
-
-def print_table(rows: list[tuple[str, str]], title: str | None = None) -> None:
-    w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
-    table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
-    table.add_column(style="cyan bold", no_wrap=True)
-    table.add_column(style="dim")
-    for cmd, desc in rows:
-        table.add_row(cmd, desc)
     if title:
         p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1), width=w)
         console.print(f"{lpad}", end="", highlight=False)
@@ -398,7 +375,7 @@ def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
     t = threading.Thread(target=_worker)
     t.start()
 
-    sp = Spinner("dots", text=f"{_content_pad()}{msg}", style="cyan")
+    sp = Spinner("dots", text=f"{content_pad()}{msg}", style="cyan")
     with Live(sp, console=console, refresh_per_second=10, transient=True):
         while t.is_alive():
             time.sleep(0.1)
@@ -414,7 +391,7 @@ def _frame_left_pad() -> int:
     return max(0, (console.width - w) // 2)
 
 
-def _content_pad() -> str:
+def content_pad() -> str:
     """Left padding to align output with frame interior."""
     return " " * (_frame_left_pad() + 3)
 

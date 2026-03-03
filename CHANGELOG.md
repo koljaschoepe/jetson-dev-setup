@@ -5,29 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2025-01-01
+## [0.1.0] - 2026-03-03
 
 ### Added
 
-- Initial release
-- 8 automated setup scripts for Jetson Orin Nano Super
-  - System optimization (disable GUI, tune kernel)
-  - Network setup (hostname, mDNS, optional Tailscale)
-  - SSH hardening (key-only auth, fail2ban)
-  - NVMe setup (partition, mount, swap, directories)
-  - Docker setup (NVIDIA Runtime, data on NVMe)
-  - Dev tools (Node.js, Python, Git, Claude Code, jtop)
-  - Quality of life (tmux, aliases, MOTD)
-  - Browser setup (Playwright + headless Chromium)
-- Arasul interactive TUI with slash commands
-  - Project management (create, clone, open, delete)
-  - AI tool integration (Claude Code, Codex)
-  - GitHub CLI setup wizard
-  - Claude OAuth setup wizard
-  - Headless browser management
-  - System status dashboard
-- Configuration via `.env` file
-- SSH config template for Mac
-- Shell aliases for common operations
-- tmux configuration optimized for Jetson development
-- Claude Code agent patterns and documentation
+- Automated 8-step setup for Jetson Orin Nano Super (headless dev server)
+- Arasul TUI with slash commands (/status, /open, /create, /clone, /claude, /codex, /git, /browser, /delete)
+- UFW firewall (SSH + mDNS only)
+- fail2ban with sshd + recidive jails
+- Network hardening (SYN cookies, reverse-path filter)
+- OOM protection for SSH and Docker
+- Journald size/retention limits
+- NVMe I/O scheduler optimization + weekly TRIM + health monitoring
+- Headless Chromium via Playwright for AI agent browser automation
+- Shared shell library (lib/common.sh)
+- CI pipeline (ruff, shellcheck, pytest)
+- Comprehensive test suite
+
+### Security
+
+- SSH key-only authentication with sshd config validation
+- Automatic security updates via unattended-upgrades (Docker/NVIDIA excluded)
+- fail2ban repeat offender protection (recidive jail)
+
+### Fixed
+
+- Shell injection vulnerability in TUI subprocess calls
+- Venv path mismatch between installer and browser setup
+- Missing STATIC_IP/STATIC_GATEWAY export in setup.sh
+- Broken arasul-shell references (renamed to arasul)
+- Binary existence check with incorrect shell=True usage

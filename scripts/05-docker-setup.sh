@@ -1,47 +1,46 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 05 — Docker Setup
-# Docker + NVIDIA Container Runtime, Daten auf NVMe, Compose V2
+# Docker + NVIDIA Container Runtime, data on NVMe, Compose V2
 # =============================================================================
 set -euo pipefail
 
-log()  { echo -e "\033[0;32m[✓]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-skip() { echo -e "\033[1;33m[→]\033[0m $* (bereits erledigt)"; }
+# shellcheck source=../lib/common.sh
+source "$(dirname "$0")/../lib/common.sh"
 
 # ---------------------------------------------------------------------------
-# Docker installieren
+# Install Docker
 # ---------------------------------------------------------------------------
 if ! command -v docker &>/dev/null; then
-    log "Installiere Docker..."
+    log "Installing Docker..."
     apt-get install -y -qq docker.io nvidia-container-toolkit 2>/dev/null || {
-        warn "Fallback: Docker manuell installieren..."
+        warn "Fallback: installing Docker manually..."
         curl -fsSL https://get.docker.com | sh
         apt-get install -y -qq nvidia-container-toolkit
     }
 fi
 
 DOCKER_VERSION=$(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',')
-log "Docker Version: ${DOCKER_VERSION}"
+log "Docker version: ${DOCKER_VERSION}"
 
 if [[ "$DOCKER_VERSION" == 28.* ]]; then
-    warn "Docker 28.x erkannt — bekannte Kernel-Probleme auf JetPack 6.x!"
-    warn "Downgrade auf 27.5.x empfohlen"
+    warn "Docker 28.x detected — known kernel issues on JetPack 6.x!"
+    warn "Downgrade to 27.5.x recommended"
 fi
 
 # ---------------------------------------------------------------------------
-# Benutzer zur docker-Gruppe hinzufügen
+# Add user to docker group
 # ---------------------------------------------------------------------------
 if ! groups "$REAL_USER" | grep -q docker; then
     usermod -aG docker "$REAL_USER"
-    log "${REAL_USER} zur docker-Gruppe hinzugefügt"
-    warn "Ausloggen und wieder einloggen für Gruppenänderung"
+    log "${REAL_USER} added to docker group"
+    warn "Log out and back in for group change to take effect"
 else
-    skip "${REAL_USER} bereits in docker-Gruppe"
+    skip "${REAL_USER} already in docker group"
 fi
 
 # ---------------------------------------------------------------------------
-# Docker-Daemon konfigurieren
+# Configure Docker daemon
 # ---------------------------------------------------------------------------
 DAEMON_JSON="/etc/docker/daemon.json"
 
@@ -50,7 +49,7 @@ if [[ -d "$NVME_MOUNT" ]] && mountpoint -q "$NVME_MOUNT" 2>/dev/null; then
     mkdir -p "$DATA_ROOT"
 else
     DATA_ROOT="/var/lib/docker"
-    warn "NVMe nicht gemountet — Docker-Daten bleiben auf SD-Karte"
+    warn "NVMe not mounted — Docker data stays on SD card"
 fi
 
 cat > "$DAEMON_JSON" << EOF
@@ -76,14 +75,14 @@ cat > "$DAEMON_JSON" << EOF
 }
 EOF
 
-log "Docker-Daemon konfiguriert (data-root: ${DATA_ROOT})"
+log "Docker daemon configured (data-root: ${DATA_ROOT})"
 
 # ---------------------------------------------------------------------------
-# Docker-Version pinnen (kein Auto-Upgrade auf 28.x)
+# Pin Docker version (prevent auto-upgrade to 28.x)
 # ---------------------------------------------------------------------------
 apt-mark hold docker-ce docker-ce-cli 2>/dev/null || \
     apt-mark hold docker.io 2>/dev/null || true
-log "Docker-Version gepinnt gegen Auto-Upgrade"
+log "Docker version pinned against auto-upgrade"
 
 # ---------------------------------------------------------------------------
 # Docker Compose V2
@@ -96,26 +95,26 @@ if ! docker compose version &>/dev/null 2>&1; then
             -o /usr/local/lib/docker/cli-plugins/docker-compose
         chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
     }
-    log "Docker Compose V2 installiert"
+    log "Docker Compose V2 installed"
 else
-    skip "Docker Compose V2 bereits vorhanden"
+    skip "Docker Compose V2 already present"
 fi
 
 # ---------------------------------------------------------------------------
-# Docker neustarten
+# Restart Docker
 # ---------------------------------------------------------------------------
 systemctl daemon-reload
 systemctl enable docker
 systemctl restart docker
 
 if docker info 2>/dev/null | grep -q nvidia; then
-    log "NVIDIA Container Runtime verifiziert"
+    log "NVIDIA Container Runtime verified"
 else
-    warn "NVIDIA Runtime nicht erkannt — GPU-Zugriff in Containern evtl. nicht möglich"
+    warn "NVIDIA Runtime not detected — GPU access in containers may not work"
 fi
 
 COMPOSE_VER=$(docker compose version 2>/dev/null | awk '{print $NF}' || echo "n/a")
-log "Docker-Setup abgeschlossen"
+log "Docker setup complete"
 log "  Data Root: ${DATA_ROOT}"
 log "  Runtime:   nvidia (default)"
 log "  Compose:   ${COMPOSE_VER}"

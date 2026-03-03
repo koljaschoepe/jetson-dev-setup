@@ -8,7 +8,6 @@ from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, TuiState
 def test_default_state():
     state = TuiState()
     assert state.active_project is None
-    assert state.active_provider is None
     assert state.project_root == DEFAULT_PROJECT_ROOT
     assert state.first_run is True
 
@@ -25,3 +24,13 @@ def test_state_active_project(tmp_path: Path):
     state.active_project = project
     assert state.active_project == project
     assert state.active_project.name == "my-project"
+
+
+def test_state_wizard_fields():
+    state = TuiState()
+    assert state._wizard_token is None
+    assert state._wizard_uuid is None
+    assert state._delete_target is None
+
+    state._wizard_token = "test-token"
+    assert state._wizard_token == "test-token"

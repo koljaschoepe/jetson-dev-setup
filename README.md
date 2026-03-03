@@ -1,6 +1,28 @@
 # Arasul
 
+[![CI](https://github.com/koljaschoepe/jetson-dev-setup/actions/workflows/ci.yml/badge.svg)](https://github.com/koljaschoepe/jetson-dev-setup/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
 > Automated setup tool for turning an NVIDIA Jetson Orin Nano Super into a headless development server. Optimized for SSH + AI coding workflows (Claude Code, Codex).
+
+## Table of Contents
+
+- [Complete Step-by-Step Guide](#complete-step-by-step-guide)
+  - [Phase 1: Install NVMe SSD](#phase-1-install-nvme-ssd)
+  - [Phase 2: Enter Recovery Mode](#phase-2-enter-recovery-mode)
+  - [Phase 3: Flash JetPack to NVMe](#phase-3-flash-jetpack-to-nvme)
+  - [Phase 4: Run Setup via Serial Console](#phase-4-run-setup-via-serial-console)
+  - [Phase 5: Set Up SSH from Mac](#phase-5-set-up-ssh-from-mac)
+  - [Phase 6: Configure Mac SSH Config](#phase-6-configure-mac-ssh-config-convenience)
+  - [Phase 7: Verify Everything](#phase-7-verify-everything)
+- [Daily Workflow](#daily-workflow)
+- [Arasul TUI](#arasul-tui)
+- [Configuration](#configuration)
+- [Repository Structure](#repository-structure)
+- [Security & Performance](#security--performance)
+- [Troubleshooting](#troubleshooting)
+- [Maintenance](#maintenance)
 
 ---
 
@@ -363,6 +385,8 @@ The serial console loses connection. The Jetson is now fully configured — you 
 ### Phase 5: Set Up SSH from Mac
 
 > **When:** Setup complete, Jetson is rebooting. From here you switch to your **Mac** — you never need the Ubuntu laptop again.
+>
+> **Important:** The setup script has already hardened SSH to key-only authentication. You must copy your SSH key to the Jetson **before** rebooting, or use the serial console fallback described below.
 
 **Step 5.1 — Create SSH Key (if none exists)**
 
@@ -651,27 +675,34 @@ Full template: [`.env.example`](.env.example)
 ├── LICENSE                     # MIT License
 ├── CONTRIBUTING.md             # Contribution guidelines
 ├── CHANGELOG.md                # Version history
+├── SECURITY.md                 # Vulnerability disclosure policy
+├── CODE_OF_CONDUCT.md          # Contributor Covenant
+├── .editorconfig               # Editor configuration
 ├── setup.sh                    # Main orchestrator
+├── lib/
+│   └── common.sh               # Shared shell library (log, err, check_root, etc.)
 ├── arasul_tui/
 │   ├── app.py                  # TUI application (slash-command interface)
 │   ├── commands.py             # Slash-command handlers
 │   ├── install.sh              # Installer for `arasul` launcher
-│   └── core/                   # Router, State, Registry, Auth, Browser, UI
+│   └── core/                   # Router, State, Registry, Types, Auth, Browser, Shell, UI
 ├── tests/                      # Pytest test suite
 ├── scripts/
 │   ├── 01-system-optimize.sh   # Disable GUI, minimize services, tune kernel
-│   ├── 02-network-setup.sh     # Hostname, mDNS (Avahi), optional Tailscale
-│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban, SSH hardening
-│   ├── 04-nvme-setup.sh        # Partition NVMe, mount, swap, directories
+│   ├── 02-network-setup.sh     # Hostname, mDNS (Avahi), UFW firewall, optional Tailscale
+│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban (sshd + recidive)
+│   ├── 04-nvme-setup.sh        # Partition NVMe, mount, swap, I/O scheduler, crons
 │   ├── 05-docker-setup.sh      # Docker + NVIDIA Runtime, data on NVMe
 │   ├── 06-devtools-setup.sh    # Node.js, Python, Git, Claude Code, jtop
 │   ├── 07-quality-of-life.sh   # tmux, aliases, MOTD, power mode
 │   └── 08-browser-setup.sh     # Playwright + headless Chromium
 ├── config/
-│   ├── daemon.json.template    # Docker daemon template
 │   ├── tmux.conf               # tmux configuration
 │   ├── bash_aliases            # Shell aliases
 │   └── mac-ssh-config          # SSH config template for Mac
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # CI pipeline (ruff, shellcheck, pytest)
 └── agents/
     └── README.md               # Claude Code agent patterns
 ```
