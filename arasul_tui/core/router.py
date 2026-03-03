@@ -19,6 +19,7 @@ def build_registry() -> CommandRegistry:
     reg.register(CommandSpec("codex", commands.cmd_codex, "Codex starten"))
     reg.register(CommandSpec("git", commands.cmd_git, "GitHub Setup"))
     reg.register(CommandSpec("browser", commands.cmd_browser, "Headless Browser"))
+    reg.register(CommandSpec("delete", commands.cmd_delete, "Projekt loeschen"))
     reg.register(CommandSpec("exit", commands.cmd_exit, "TUI beenden"))
     return reg
 
@@ -33,7 +34,7 @@ def run_command(state: TuiState, raw: str) -> CommandResult:
 
     if not text.startswith("/"):
         from arasul_tui.core.ui import print_warning
-        print_warning("Tippe [bold]/help[/bold] fuer Befehle oder waehle ein Projekt per Nummer.")
+        print_warning(f"Unbekannt: [bold]{text}[/bold] — tippe [bold]/help[/bold] oder waehle per Nummer.")
         return CommandResult(ok=False, style="silent")
 
     try:

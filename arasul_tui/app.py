@@ -18,6 +18,7 @@ from arasul_tui.core.ui import (
     print_header,
     print_separator,
     print_result,
+    print_project_menu,
     build_prompt,
     project_list,
     print_warning,
@@ -109,9 +110,6 @@ def _handle_action_shortcut(state: TuiState, key: str) -> tuple[bool, str | None
         return True, "claude"
     if key == "x":
         return True, "codex"
-    if key == "b":
-        state.active_project = None
-        return True, None
     return False, None
 
 
@@ -168,7 +166,7 @@ def run() -> None:
 
             if result.refresh:
                 if state.active_project:
-                    print_success(f"Projekt: [bold]{state.active_project.name}[/bold]")
+                    print_project_menu(state)
                 else:
                     print_header(state, full=True)
 
@@ -189,47 +187,60 @@ def run() -> None:
                 print_header(state, full=True)
             continue
 
+        # "d" / "D" -> delete project
+        if command.lower() == "d":
+            result = run_command(state, "/delete")
+            print_result(result)
+            if result.prompt and result.pending_handler:
+                pending_handler = result.pending_handler
+                wizard_step = result.wizard_step
+            if result.refresh:
+                print_header(state, full=True)
+            continue
+
         # Number input -> select project
         if command.isdigit():
             num = int(command)
             if _handle_number(state, num):
-                print_success(f"Projekt: [bold]{state.active_project.name}[/bold]")
+                print_project_menu(state)
                 continue
             else:
                 print_warning(f"Kein Projekt mit Nummer [bold]{num}[/bold].")
                 continue
 
+        # "b" -> back to overview (works with or without active project)
+        if command.lower() == "b":
+            state.active_project = None
+            print_header(state, full=True)
+            continue
+
         # Single-letter action shortcuts (when project is active)
-        if len(command) == 1 and command.lower() in ("c", "x", "b") and state.active_project:
+        if len(command) == 1 and command.lower() in ("c", "x") and state.active_project:
             handled, launch_cmd = _handle_action_shortcut(state, command.lower())
-            if handled:
-                if launch_cmd:
-                    import subprocess
-                    binary = subprocess.run(
-                        f"command -v {launch_cmd}",
-                        shell=True, check=False, capture_output=True, text=True,
-                    )
-                    if binary.returncode != 0:
-                        from arasul_tui.core.ui import print_error
-                        print_error(f"[bold]{launch_cmd}[/bold] nicht gefunden.")
+            if handled and launch_cmd:
+                import subprocess
+                binary = subprocess.run(
+                    f"command -v {launch_cmd}",
+                    shell=True, check=False, capture_output=True, text=True,
+                )
+                if binary.returncode != 0:
+                    from arasul_tui.core.ui import print_error
+                    print_error(f"[bold]{launch_cmd}[/bold] nicht gefunden.")
+                    continue
+
+                if launch_cmd == "claude":
+                    from arasul_tui.core.auth import is_claude_configured
+                    if not is_claude_configured():
+                        result = run_command(state, "/claude")
+                        print_result(result)
+                        if result.prompt and result.pending_handler:
+                            pending_handler = result.pending_handler
+                            wizard_step = result.wizard_step
                         continue
 
-                    if launch_cmd == "claude":
-                        from arasul_tui.core.auth import is_claude_configured
-                        if not is_claude_configured():
-                            result = run_command(state, "/claude")
-                            print_result(result)
-                            if result.prompt and result.pending_handler:
-                                pending_handler = result.pending_handler
-                                wizard_step = result.wizard_step
-                            continue
-
-                    print_info(f"Starte [bold]{launch_cmd}[/bold] in [dim]{state.active_project}[/dim] ...")
-                    launch_request = (launch_cmd, state.active_project)
-                    break
-                else:
-                    print_info("Zurueck zur Uebersicht.")
-                    continue
+                print_info(f"Starte [bold]{launch_cmd}[/bold] in [dim]{state.active_project}[/dim] ...")
+                launch_request = (launch_cmd, state.active_project)
+                break
 
         # Slash commands (power-user path)
         result = run_command(state, command)
@@ -240,7 +251,9 @@ def run() -> None:
             wizard_step = result.wizard_step
 
         if result.refresh:
-            if not state.active_project:
+            if state.active_project:
+                print_project_menu(state)
+            else:
                 print_header(state, full=True)
 
         if result.launch_command and result.launch_cwd:

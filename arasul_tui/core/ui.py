@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Callable, Any
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 from rich.live import Live
@@ -188,6 +187,8 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
 
 def print_header(state: TuiState, full: bool = True) -> None:
     if not full:
+        pad = _content_pad()
+        w = _adaptive_width() - 6
         parts: list[str] = []
         if state.active_project:
             name = state.active_project.name
@@ -197,9 +198,15 @@ def print_header(state: TuiState, full: bool = True) -> None:
                 parts.append(gi)
         else:
             parts.append("[dim]kein Projekt[/dim]")
-        title = " [dim]·[/dim] ".join(parts)
+        title = " · ".join(parts)
+        title_len = _vis_len(" [dim]·[/dim] ".join(parts)) + 2
+        side = max(1, (w - title_len) // 2)
+        right_side = max(1, w - title_len - side)
         console.print()
-        console.print(Rule(title, style="dim"))
+        console.print(
+            f"{pad}[dim]{'─' * side}[/dim] {' [dim]·[/dim] '.join(parts)} [dim]{'─' * right_side}[/dim]",
+            highlight=False,
+        )
         console.print()
         return
 
@@ -239,6 +246,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
 
 def print_project_menu(state: TuiState) -> None:
     """Show action menu after selecting a project."""
+    pad = _content_pad()
     name = state.active_project.name if state.active_project else "?"
     gi = _git_info_short(state.active_project)
     title_parts = [f"[bold]{name}[/bold]"]
@@ -247,13 +255,11 @@ def print_project_menu(state: TuiState) -> None:
     title = " [dim]·[/dim] ".join(title_parts)
 
     console.print()
-    console.print(Rule(title, style="dim"))
+    console.print(f"{pad}[dim]{title}[/dim]", highlight=False)
     console.print()
-    console.print("  [dim]Was moechtest du tun?[/dim]", highlight=False)
-    console.print()
-    console.print("  [bold cyan]\\[c][/bold cyan]  Claude Code starten", highlight=False)
-    console.print("  [bold cyan]\\[x][/bold cyan]  Codex starten", highlight=False)
-    console.print("  [bold cyan]\\[b][/bold cyan]  Zurueck zur Uebersicht", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[c][/bold cyan]  Claude Code starten", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[x][/bold cyan]  Codex starten", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[b][/bold cyan]  Zurueck zur Uebersicht", highlight=False)
     console.print()
 
 
@@ -262,76 +268,104 @@ def print_result(result: CommandResult) -> None:
         return
 
     style = getattr(result, "style", None)
+    pad = _content_pad()
 
     if style == "silent":
         return
 
     if style == "success":
         for line in result.lines:
-            console.print(f"  [green]{line}[/green]", highlight=False)
+            console.print(f"{pad}[green]{line}[/green]", highlight=False)
     elif style == "error":
         for line in result.lines:
-            console.print(f"  [red]{line}[/red]", highlight=False)
+            console.print(f"{pad}[red]{line}[/red]", highlight=False)
     elif style == "panel":
         text = "\n".join(result.lines)
-        console.print(Panel(text, border_style="dim", padding=(0, 2)))
+        w = _adaptive_width() - 4
+        p = Panel(text, border_style="dim", padding=(0, 2), width=w)
+        lpad = " " * _frame_left_pad()
+        console.print(f"{lpad}  ", end="", highlight=False)
+        console.print(p, highlight=False)
     elif style == "wizard":
         for line in result.lines:
-            console.print(f"  {line}", highlight=False)
+            console.print(f"{pad}{line}", highlight=False)
     else:
         ok = result.ok
         for line in result.lines:
             if not ok and line and not line.startswith(" "):
-                console.print(f"  [red]{line}[/red]", highlight=False)
+                console.print(f"{pad}[red]{line}[/red]", highlight=False)
             else:
-                console.print(f"  {line}", highlight=False)
+                console.print(f"{pad}{line}", highlight=False)
 
 
 def print_step(current: int, total: int, title: str) -> None:
-    label = f"[bold]{title}[/bold] [dim]· Schritt {current}/{total}[/dim]"
+    pad = _content_pad()
+    w = _adaptive_width() - 6
+    title_plain = f" {title} · Schritt {current}/{total} "
+    side = max(1, (w - len(title_plain)) // 2)
+    right = max(1, w - len(title_plain) - side)
     console.print()
-    console.print(Rule(label, style="cyan"))
+    console.print(
+        f"{pad}[cyan]{'─' * side}[/cyan]"
+        f" [bold]{title}[/bold] [dim]· Schritt {current}/{total}[/dim] "
+        f"[cyan]{'─' * right}[/cyan]",
+        highlight=False,
+    )
     console.print()
 
 
 def print_success(msg: str) -> None:
-    console.print(f"  [green]✓[/green] {msg}", highlight=False)
+    pad = _content_pad()
+    console.print(f"{pad}[green]✓[/green] {msg}", highlight=False)
 
 
 def print_error(msg: str) -> None:
-    console.print(f"  [red]✗[/red] {msg}", highlight=False)
+    pad = _content_pad()
+    console.print(f"{pad}[red]✗[/red] {msg}", highlight=False)
 
 
 def print_info(msg: str) -> None:
-    console.print(f"  [cyan]→[/cyan] {msg}", highlight=False)
+    pad = _content_pad()
+    console.print(f"{pad}[cyan]→[/cyan] {msg}", highlight=False)
 
 
 def print_warning(msg: str) -> None:
-    console.print(f"  [yellow]![/yellow] {msg}", highlight=False)
+    pad = _content_pad()
+    console.print(f"{pad}[yellow]![/yellow] {msg}", highlight=False)
 
 
 def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
+    w = _adaptive_width() - 4
+    lpad = " " * (_frame_left_pad() + 2)
     table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
     table.add_column(style="bold", no_wrap=True)
     table.add_column()
     for k, v in data:
         table.add_row(k, v)
     if title:
-        console.print(Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1)))
+        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1), width=w)
+        console.print(f"{lpad}", end="", highlight=False)
+        console.print(p, highlight=False)
     else:
-        console.print(table)
+        console.print(f"{lpad}", end="", highlight=False)
+        console.print(table, highlight=False)
 
 
 def print_table(rows: list[tuple[str, str]], title: str | None = None) -> None:
+    w = _adaptive_width() - 4
+    lpad = " " * (_frame_left_pad() + 2)
     table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
     table.add_column(style="cyan bold", no_wrap=True)
     table.add_column(style="dim")
     for cmd, desc in rows:
         table.add_row(cmd, desc)
     if title:
-        console.print(Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1)))
+        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", padding=(0, 1), width=w)
+        console.print(f"{lpad}", end="", highlight=False)
+        console.print(p, highlight=False)
     else:
-        console.print(table)
+        console.print(f"{lpad}", end="", highlight=False)
+        console.print(table, highlight=False)
 
 
 def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
@@ -348,7 +382,7 @@ def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
     t = threading.Thread(target=_worker)
     t.start()
 
-    sp = Spinner("dots", text=f"  {msg}", style="cyan")
+    sp = Spinner("dots", text=f"{_content_pad()}{msg}", style="cyan")
     with Live(sp, console=console, refresh_per_second=10, transient=True):
         while t.is_alive():
             time.sleep(0.1)
@@ -364,11 +398,16 @@ def _frame_left_pad() -> int:
     return max(0, (console.width - w) // 2)
 
 
+def _content_pad() -> str:
+    """Left padding to align output with frame interior."""
+    return " " * (_frame_left_pad() + 3)
+
+
 def print_separator() -> None:
     """Print a thin separator line aligned with the frame."""
     w = _adaptive_width()
     pad = " " * _frame_left_pad()
-    console.print(f"{pad}{'─' * (w - 2)}", style="dim", highlight=False)
+    console.print(f"{pad}{'─' * w}", style="dim", highlight=False)
 
 
 def build_prompt(state: TuiState, wizard_step: tuple[int, int, str] | None = None) -> str:
