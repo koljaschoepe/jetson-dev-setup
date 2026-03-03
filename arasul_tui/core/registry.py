@@ -1,13 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable
 
-from arasul_tui.core.state import TuiState
+from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, TuiState
 from arasul_tui.core.types import CommandResult
-from arasul_tui.core.state import DEFAULT_PROJECT_ROOT
-
 
 Handler = Callable[[TuiState, list[str]], CommandResult]
 
@@ -76,4 +73,3 @@ class CommandRegistry:
             return sorted([p.name for p in root.iterdir() if p.is_dir()], key=str.lower)
         except Exception:
             return []
-

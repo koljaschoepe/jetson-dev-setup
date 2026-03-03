@@ -1,4 +1,4 @@
-# === jetson-dev aliases ===
+# === arasul dev aliases ===
 
 # tmux
 alias t='tmux attach -t dev 2>/dev/null || tmux new -s dev'
@@ -9,11 +9,9 @@ alias tl='tmux list-sessions'
 # Claude Code
 alias c='claude'
 alias cc='claude --continue'
-alias atui='arasul-shell'
-alias as='arasul status'
-alias ah='arasul health'
+alias atui='arasul'
 
-# Systemüberwachung
+# System monitoring
 alias temps='cat /sys/devices/virtual/thermal/thermal_zone*/type /sys/devices/virtual/thermal/thermal_zone*/temp 2>/dev/null | paste - - | column -t'
 alias gpu='sudo tegrastats'
 alias ram='free -h'
@@ -31,7 +29,7 @@ alias dprune='docker system prune -af --volumes'
 alias p='cd ~/projects'
 alias nvme='cd /mnt/nvme'
 
-# Power-Management
+# Power management
 alias powermode='sudo nvpmodel -q'
 alias maxperf='sudo nvpmodel -m 3 && sudo jetson_clocks'
 alias lowpower='sudo nvpmodel -m 0'
@@ -42,7 +40,7 @@ alias gl='git log --oneline -20'
 alias gp='git push'
 alias gpl='git pull'
 
-# Sicherheit
+# Safety
 alias rm='rm -i'
 alias mv='mv -i'
 alias cp='cp -i'

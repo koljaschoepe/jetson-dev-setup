@@ -1,89 +1,89 @@
-# Claude Code Agents für Jetson-Entwicklung
+# Claude Code Agents for Jetson Development
 
-Nützliche Claude Code Patterns und Workflows für die Arbeit auf dem Jetson Orin Nano Super.
+Useful Claude Code patterns and workflows for working on the Jetson Orin Nano Super.
 
 ## Quick Start
 
 ```bash
 ssh jetson
-t                    # tmux Session
-cd ~/projects/mein-app
-claude               # Claude Code starten
+t                    # tmux session
+cd ~/projects/my-app
+claude               # Start Claude Code
 ```
 
-## Nützliche Claude Code Befehle
+## Useful Claude Code Prompts
 
 ### System Health Check
 ```
-claude -p "Prüfe diesen Jetson: Disk-Space, RAM, GPU-Temperatur, Docker-Status, NVMe-Health. Fasse Probleme zusammen."
+claude -p "Check this Jetson: disk space, RAM, GPU temperature, Docker status, NVMe health. Summarize any issues."
 ```
 
-### Neues Projekt bootstrappen
+### Bootstrap New Project
 ```
-claude -p "Erstelle ein Python-Projekt in ~/projects/PROJEKTNAME mit: pyproject.toml, src/-Layout, Dockerfile optimiert für Jetson ARM64 mit NVIDIA Runtime, docker-compose.yml, .gitignore und README. Python 3.10."
-```
-
-### Docker Compose für Jetson
-```
-claude -p "Erstelle eine docker-compose.yml für BESCHREIBUNG. Anforderungen: linux/arm64 Images, NVIDIA Runtime, max 2GB RAM pro Container, /mnt/nvme/docker für Volumes, Health Checks."
+claude -p "Create a Python project in ~/projects/PROJECTNAME with: pyproject.toml, src/ layout, Dockerfile optimized for Jetson ARM64 with NVIDIA Runtime, docker-compose.yml, .gitignore and README. Python 3.10."
 ```
 
-## Agent-Patterns
+### Docker Compose for Jetson
+```
+claude -p "Create a docker-compose.yml for DESCRIPTION. Requirements: linux/arm64 images, NVIDIA Runtime, max 2GB RAM per container, /mnt/nvme/docker for volumes, health checks."
+```
 
-### 1. Persistente Dev-Session
-Claude Code in einem tmux-Pane — überlebt SSH-Disconnects:
+## Agent Patterns
+
+### 1. Persistent Dev Session
+Claude Code in a tmux pane — survives SSH disconnects:
 ```bash
 tmux new -s claude
 claude
-# Ctrl-a d zum Detachen
-# tmux attach -t claude zum Reattachen
+# Ctrl-a d to detach
+# tmux attach -t claude to reattach
 ```
 
-### 2. Multi-Projekt Workflow
-tmux-Fenster für verschiedene Projekte:
+### 2. Multi-Project Workflow
+tmux windows for different projects:
 ```bash
 tmux new -s dev
-cd ~/projects/projekt-a && claude   # Fenster 1
-# Ctrl-a c (neues Fenster)
-cd ~/projects/projekt-b && claude   # Fenster 2
-# Ctrl-a n/p zum Wechseln
+cd ~/projects/project-a && claude   # Window 1
+# Ctrl-a c (new window)
+cd ~/projects/project-b && claude   # Window 2
+# Ctrl-a n/p to switch
 ```
 
-### 3. System-Administration
+### 3. System Administration
 ```
-claude -p "Sysadmin für Jetson Orin Nano Super (8GB RAM, NVMe auf /mnt/nvme). Prüfe und optimiere: Disk Usage, Docker Cleanup, Log Rotation, Swap, RAM-intensive Services."
+claude -p "Sysadmin for Jetson Orin Nano Super (8GB RAM, NVMe at /mnt/nvme). Check and optimize: disk usage, Docker cleanup, log rotation, swap, RAM-intensive services."
 ```
 
-## ARM64-Hinweise für Claude Code
+## ARM64 Notes for Claude Code
 
-- **Docker-Images müssen ARM64 sein**: Immer `platform: linux/arm64` angeben
-- **PyTorch braucht NVIDIA-Wheels**: `pip install torch` funktioniert nicht direkt
-- **8GB geteilter RAM**: Max 2-3 Docker-Container gleichzeitig
-- **NVMe ist Primärspeicher**: Projekte unter `/mnt/nvme/projects/`
-- **Kein GUI**: Alles terminal-basiert
-- **CUDA 12.6**: GPU in Docker mit `--runtime=nvidia`
+- **Docker images must be ARM64**: Always specify `platform: linux/arm64`
+- **PyTorch needs NVIDIA wheels**: `pip install torch` doesn't work directly
+- **8GB shared RAM**: Max 2-3 Docker containers simultaneously
+- **NVMe is primary storage**: Projects under `/mnt/nvme/projects/`
+- **No GUI**: Everything is terminal-based
+- **CUDA 12.6**: GPU in Docker with `--runtime=nvidia`
 
-## CLAUDE.md Template für Projekte
+## CLAUDE.md Template for Projects
 
 ```markdown
-# Projektname
+# Project Name
 
-## Was
-Kurze Beschreibung.
+## What
+Brief description.
 
-## Architektur
-- Runtime: Docker auf Jetson Orin Nano Super (ARM64, 8GB RAM)
-- Speicher: /mnt/nvme/projects/dieses-projekt
+## Architecture
+- Runtime: Docker on Jetson Orin Nano Super (ARM64, 8GB RAM)
+- Storage: /mnt/nvme/projects/this-project
 - GPU: CUDA 12.6 via NVIDIA Container Runtime
 
-## Befehle
+## Commands
 - Build: `docker compose build`
 - Run: `docker compose up -d`
 - Test: `docker compose exec app pytest`
 - Logs: `docker compose logs -f`
 
-## Einschränkungen
-- Max 2GB RAM pro Container
-- Nur ARM64-Images
-- Offline-fähig bevorzugt (Edge Deployment)
+## Constraints
+- Max 2GB RAM per container
+- ARM64 images only
+- Prefer offline-capable (edge deployment)
 ```

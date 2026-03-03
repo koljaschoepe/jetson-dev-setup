@@ -1,152 +1,135 @@
-# Jetson Dev Setup — Claude Code Kontext
+# Arasul — Claude Code Context
 
-## Was ist dieses Repo?
-Automatisierte Setup-Scripts um ein frisches NVIDIA Jetson Orin Nano Super Dev Kit (8GB) in einen Headless Development Server umzuwandeln. Optimiert für Remote-Entwicklung via SSH + Claude Code. Wird verwendet um Jetson-Geräte für Kunden einheitlich vorzubereiten.
+## What Is This Repo?
+Automated setup scripts to turn a fresh NVIDIA Jetson Orin Nano Super Dev Kit (8GB) into a headless development server. Optimized for remote development via SSH + Claude Code. Used to prepare Jetson devices with a consistent configuration.
 
-## Hardware-Kontext
-- **Gerät:** NVIDIA Jetson Orin Nano Super Developer Kit (2025)
-- **SoC:** Orin (6× Arm Cortex-A78AE @ 1.7GHz, 1024 CUDA Cores Ampere GPU)
-- **RAM:** 8GB LPDDR5 **geteilt** zwischen CPU und GPU
+## Hardware Context
+- **Device:** NVIDIA Jetson Orin Nano Super Developer Kit (2025)
+- **SoC:** Orin (6x Arm Cortex-A78AE @ 1.7GHz, 1024 CUDA Cores Ampere GPU)
+- **RAM:** 8GB LPDDR5 **shared** between CPU and GPU
 - **OS:** JetPack 6.2.2 (Ubuntu 22.04, Jetson Linux 36.5, Kernel 5.15, CUDA 12.6)
 - **Arch:** aarch64 / ARM64
-- **Speicher:** NVMe M.2 2280 SSD (Primärspeicher)
-- **Netzwerk:** Gigabit Ethernet
+- **Storage:** NVMe M.2 2280 SSD (primary storage)
+- **Network:** Gigabit Ethernet
 
-## Schlüssel-Einschränkungen
-- Nur 8GB RAM geteilt CPU/GPU — kein Desktop, Services minimieren
-- ARM64 — nicht alle x86-Pakete/Container verfügbar
-- Docker-Images müssen `linux/arm64` oder multi-arch sein
-- NVMe ist Pflicht für Docker/Swap (SD-Karte zu langsam)
-- NVIDIA Container Runtime vorinstalliert — `--runtime=nvidia` für GPU
+## Key Constraints
+- Only 8GB RAM shared CPU/GPU — no desktop, minimize services
+- ARM64 — not all x86 packages/containers available
+- Docker images must be `linux/arm64` or multi-arch
+- NVMe is required for Docker/Swap (SD card too slow)
+- NVIDIA Container Runtime pre-installed — `--runtime=nvidia` for GPU
 
-## Sicherheits-Konfiguration
-- SSH: Key-Only Auth (`/etc/ssh/sshd_config.d/99-jetson-hardened.conf`)
-- Firewall: UFW aktiv, nur SSH (22) + mDNS (5353) erlaubt
-- fail2ban: sshd-Jail + recidive-Jail (Wiederholungstäter 1 Woche Ban)
-- Automatische Security-Patches via `unattended-upgrades` (Docker/NVIDIA ausgenommen)
-- Netzwerk-Hardening: SYN-Cookies, Reverse-Path-Filter, keine Redirects
+## Security Configuration
+- SSH: Key-only auth (`/etc/ssh/sshd_config.d/99-jetson-hardened.conf`)
+- Firewall: UFW active, only SSH (22) + mDNS (5353) allowed
+- fail2ban: sshd jail + recidive jail (repeat offenders 1 week ban)
+- Automatic security patches via `unattended-upgrades` (Docker/NVIDIA excluded)
+- Network hardening: SYN cookies, reverse-path filter, no redirects
 
-## Performance-Tuning
+## Performance Tuning
 - Kernel: `vm.swappiness=10`, `vfs_cache_pressure=50`, `dirty_ratio=10`, `min_free_kbytes=65536`
-- OOM-Schutz: SSH (`OOMScoreAdjust=-900`), Docker (`-500`)
-- NVMe: `noatime`-Mount, `none` I/O-Scheduler, wöchentlich TRIM
-- Journald: 200MB Limit, 1 Woche Retention
-- ~39 laufende Services (Desktop/WiFi/Print deaktiviert)
+- OOM protection: SSH (`OOMScoreAdjust=-900`), Docker (`-500`)
+- NVMe: `noatime` mount, `none` I/O scheduler, weekly TRIM
+- Journald: 200MB limit, 1 week retention
+- ~39 running services (desktop/WiFi/print disabled)
 
-## Konfiguration
-Alle kundenspezifischen Variablen stehen in `.env` (erstellt aus `.env.example`).
-Scripts lesen Variablen über exportierte Umgebungsvariablen von `setup.sh`.
+## Configuration
+All device-specific variables are in `.env` (created from `.env.example`).
+Scripts read variables via exported environment variables from `setup.sh`.
 
-## Repo-Struktur
+## Repo Structure
 ```
-├── .env.example           # Konfigurations-Vorlage
-├── pyproject.toml         # Python-Paketdefinition (Arasul TUI)
-├── CLAUDE.md              # Diese Datei
-├── README.md              # Setup-Anleitung
-├── setup.sh               # Hauptorchestrator (sourced .env)
+├── .env.example        # Configuration template
+├── pyproject.toml      # Python package definition (Arasul TUI)
+├── CLAUDE.md           # This file
+├── README.md           # Setup guide
+├── setup.sh            # Main orchestrator (sources .env)
 ├── arasul_tui/
-│   ├── app.py             # Textual TUI App
-│   ├── commands.py        # Slash-Commands
-│   ├── install.sh         # Installer (venv + launcher)
-│   ├── core/              # Router, Registry, Projects, Session-Lock
-│   └── providers/         # Claude/Codex Provider-Layer
+│   ├── app.py          # TUI application
+│   ├── commands.py     # Slash commands
+│   ├── install.sh      # Installer (venv + launcher)
+│   └── core/           # Router, Registry, Projects, State, Auth, Browser, UI
+├── tests/              # Pytest test suite
 ├── scripts/
-│   ├── 01-system-optimize.sh  # GUI deaktivieren, Services, Kernel tunen
-│   ├── 02-network-setup.sh    # Hostname, mDNS, optional Tailscale
-│   ├── 03-ssh-harden.sh       # Key-Only Auth, fail2ban
-│   ├── 04-nvme-setup.sh       # Partition, Format, Mount, Swap
-│   ├── 05-docker-setup.sh     # Docker, NVIDIA Runtime, Compose
-│   ├── 06-devtools-setup.sh   # Node.js, Python, Git, Claude Code
-│   ├── 07-quality-of-life.sh  # tmux, Aliases, MOTD
-│   └── 08-browser-setup.sh    # Playwright + Headless Chromium
+│   ├── 01-system-optimize.sh   # Disable GUI, services, tune kernel
+│   ├── 02-network-setup.sh     # Hostname, mDNS, optional Tailscale
+│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban
+│   ├── 04-nvme-setup.sh        # Partition, format, mount, swap
+│   ├── 05-docker-setup.sh      # Docker, NVIDIA Runtime, Compose
+│   ├── 06-devtools-setup.sh    # Node.js, Python, Git, Claude Code
+│   ├── 07-quality-of-life.sh   # tmux, aliases, MOTD
+│   └── 08-browser-setup.sh     # Playwright + headless Chromium
 ├── config/
-│   ├── daemon.json.template   # Docker-Daemon Vorlage
-│   ├── tmux.conf              # tmux-Konfiguration
-│   ├── bash_aliases           # Shell-Aliases
-│   └── mac-ssh-config         # SSH-Config-Template für Mac
+│   ├── daemon.json.template    # Docker daemon template
+│   ├── tmux.conf               # tmux configuration
+│   ├── bash_aliases            # Shell aliases
+│   └── mac-ssh-config          # SSH config template for Mac
 └── agents/
-    └── README.md              # Claude Code Agent-Patterns
+    └── README.md               # Claude Code agent patterns
 ```
 
-## Script-Konventionen
-- Alle Scripts sind idempotent — mehrfach ausführbar
-- Scripts prüfen Voraussetzungen und überspringen erledigte Schritte
-- Jedes Script kann einzeln oder via `setup.sh` ausgeführt werden
-- Logs unter `/var/log/jetson-setup/`
-- Exit-Codes: 0=Erfolg, 1=Fehler, 2=Übersprungen
-
-## `arasul` CLI-Tool
-Systemverwaltung über ein zentrales Kommando:
-```bash
-arasul status              # System-Dashboard (Default)
-arasul health              # Vollständiger Health-Check
-arasul update              # System-Update
-arasul docker status       # Container-Übersicht
-arasul docker cleanup      # Docker aufräumen
-arasul power max           # 25W + Max Clocks
-arasul power default       # 15W Standard
-arasul nvme status         # NVMe-Health + SMART
-arasul network             # Netzwerk-Info
-arasul ssh status          # SSH-Security-Status
-arasul backup create       # Konfiguration sichern
-arasul help                # Alle Befehle
-```
-
-Installiert unter `/usr/local/bin/arasul`, Kommandos unter `/usr/local/lib/arasul/commands/`.
+## Script Conventions
+- All scripts are idempotent — safe to run multiple times
+- Scripts check prerequisites and skip completed steps
+- Each script can run standalone or via `setup.sh`
+- Logs at `/var/log/jetson-setup/`
+- Exit codes: 0=success, 1=error, 2=skipped
 
 ## Arasul TUI
-- Quellcode unter `arasul_tui/`
-- Start lokal aus dem Repo mit:
-  - `python3 -m pip install -e .`
-  - `arasul-tui`
-- Optionaler Installer:
+- Source code in `arasul_tui/`
+- Install locally from the repo:
+  - `pip install -e .`
+  - `arasul`
+- Optional installer:
   - `./arasul_tui/install.sh`
-  - Start dann mit `arasul-shell` oder Alias `atui`
-- Slash-Commands:
-  - `/status` — Systemstatus
-  - `/open <projekt>` — Projektordner aktivieren
-  - `/create` — Neues Projekt (interaktiv)
-  - `/claude` — Claude Code starten (mit OAuth-Setup-Wizard)
-  - `/codex` — Codex starten
-  - `/browser status|test|install|mcp` — Headless Browser verwalten
+  - Start with `arasul` or alias `atui`
+- Slash commands:
+  - `/status` — System status
+  - `/open <project>` — Activate project folder
+  - `/create` — New project (interactive)
+  - `/clone` — Clone GitHub repo (interactive)
+  - `/claude` — Start Claude Code (with OAuth setup wizard)
+  - `/codex` — Start Codex
+  - `/git` — GitHub CLI setup wizard
+  - `/browser status|test|install|mcp` — Headless browser management
   - `/help`, `/exit`
 
 ## Headless Browser (Playwright)
-- Playwright + Chromium headless fuer AI Agent Browser-Automation
-- Browser-Cache auf NVMe: `/mnt/nvme/playwright-browsers`
-- Env-Variable: `PLAYWRIGHT_BROWSERS_PATH=/mnt/nvme/playwright-browsers`
-- MCP Server: Playwright MCP in `~/.claude.json` konfiguriert
-- Claude Code kann damit Webseiten navigieren, Screenshots machen, Formulare ausfuellen
-- Installation: `sudo ./setup.sh --step 8` oder `/browser install` in der TUI
+- Playwright + Chromium headless for AI agent browser automation
+- Browser cache on NVMe: `/mnt/nvme/playwright-browsers`
+- Env variable: `PLAYWRIGHT_BROWSERS_PATH=/mnt/nvme/playwright-browsers`
+- MCP server: Playwright MCP configured in `~/.claude.json`
+- Claude Code can navigate web pages, take screenshots, fill forms
+- Installation: `sudo ./setup.sh --step 8` or `/browser install` in the TUI
 
-## Weitere nützliche Befehle
+## Useful Commands
 ```bash
-jtop                          # Jetson Dashboard (GPU, RAM, Temp)
-sudo tegrastats               # Einzeilige System-Stats
-docker compose up -d          # Stack starten
+jtop                    # Jetson dashboard (GPU, RAM, temp)
+sudo tegrastats         # One-line system stats
+docker compose up -d    # Start stack
 ```
 
-## Entwicklungs-Workflow
-1. SSH vom Mac: `ssh jetson`
-2. tmux Session: `t` (Alias)
-3. Projekt: `cd ~/projects/<projekt>`
+## Development Workflow
+1. SSH from Mac: `ssh jetson`
+2. tmux session: `t` (alias)
+3. Project: `cd ~/projects/<project>`
 4. Claude Code: `claude`
 
-## Wichtige Pfade
-- `/mnt/nvme/projects/` — Alle Projekte
-- `/mnt/nvme/docker/` — Docker Data Root
-- `/mnt/nvme/models/` — AI-Modelle (Ollama etc.)
-- `/mnt/nvme/playwright-browsers/` — Headless Chromium Cache
+## Important Paths
+- `/mnt/nvme/projects/` — All projects
+- `/mnt/nvme/docker/` — Docker data root
+- `/mnt/nvme/models/` — AI models (Ollama etc.)
+- `/mnt/nvme/playwright-browsers/` — Headless Chromium cache
 - `/mnt/nvme/backups/` — Backups
-- `/var/log/jetson-setup/` — Setup-Logs
-- `/var/log/jetson-setup/nvme-health.log` — Wöchentliche NVMe SMART-Daten
-- `/etc/ssh/sshd_config.d/99-jetson-hardened.conf` — SSH-Härtung
-- `/etc/sysctl.d/99-jetson-dev.conf` — Kernel-Parameter
-- `/etc/cron.weekly/nvme-health` — NVMe-Health-Check Cron
-- `/etc/cron.weekly/docker-cleanup` — Docker-Cleanup Cron
+- `/var/log/jetson-setup/` — Setup logs
+- `/var/log/jetson-setup/nvme-health.log` — Weekly NVMe SMART data
+- `/etc/ssh/sshd_config.d/99-jetson-hardened.conf` — SSH hardening
+- `/etc/sysctl.d/99-jetson-dev.conf` — Kernel parameters
+- `/etc/cron.weekly/nvme-health` — NVMe health check cron
+- `/etc/cron.weekly/docker-cleanup` — Docker cleanup cron
 
-## ARM64-Besonderheiten
-- `docker buildx` für Multi-Arch-Builds
-- npm-Pakete mit nativen Addons brauchen `build-essential` + `python3`
-- PyTorch für Jetson: NVIDIA-Wheels, nicht PyPI
-- CUDA unter `/usr/local/cuda-12.6/`, bereits im PATH
+## ARM64 Notes
+- `docker buildx` for multi-arch builds
+- npm packages with native addons need `build-essential` + `python3`
+- PyTorch for Jetson: NVIDIA wheels, not PyPI
+- CUDA at `/usr/local/cuda-12.6/`, already in PATH

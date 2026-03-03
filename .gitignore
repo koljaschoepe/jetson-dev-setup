@@ -1,4 +1,4 @@
-# Kundenkonfiguration (enthält spezifische Daten)
+# Device configuration (contains user-specific data)
 .env
 
 # OS
@@ -9,6 +9,8 @@ Thumbs.db
 *.key
 *.pem
 *.env.local
+*.env.*
+!.env.example
 
 # Logs
 *.log
@@ -27,9 +29,20 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
 *.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Documents
+*.docx
+*.doc
+*.pdf
 
 # Archives
 *.tar.gz

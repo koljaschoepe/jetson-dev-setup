@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+import datetime as dt
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
-import datetime as dt
 
 import yaml
-
 
 REGISTRY_PATH = Path("~/.config/arasul/projects.yaml").expanduser()
 
@@ -63,7 +62,9 @@ def get_project(name: str) -> ProjectRecord | None:
     return None
 
 
-def register_project(name: str, path: Path, provider_default: str = "claude", git_remote: str | None = None) -> ProjectRecord:
+def register_project(
+    name: str, path: Path, provider_default: str = "claude", git_remote: str | None = None
+) -> ProjectRecord:
     reg = load_registry()
     existing = [p for p in reg["projects"] if p.get("name") == name]
     created = dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -79,4 +80,3 @@ def register_project(name: str, path: Path, provider_default: str = "claude", gi
     reg["projects"].append(asdict(record))
     save_registry(reg)
     return record
-

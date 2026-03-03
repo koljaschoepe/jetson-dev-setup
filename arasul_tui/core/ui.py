@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import subprocess
-import socket
 import threading
 import time
+from collections.abc import Callable
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
-from rich.live import Live
-from rich.spinner import Spinner
 
 if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
@@ -20,7 +22,11 @@ if TYPE_CHECKING:
 
 console = Console()
 
-VERSION = "v0.1.0"
+try:
+    VERSION = f"v{pkg_version('arasul')}"
+except PackageNotFoundError:
+    VERSION = "v0.1.0"
+
 MAX_WIDTH = 84
 MIN_WIDTH = 72
 
@@ -46,7 +52,7 @@ def _quick_run(cmd: str, timeout: int = 3) -> str:
 def _github_status() -> str:
     auth = _quick_run("gh auth status 2>&1", timeout=4)
     if "Logged in" not in auth:
-        return "[dim]nicht verbunden[/dim]"
+        return "[dim]not connected[/dim]"
     for line in auth.splitlines():
         if "account" in line.lower():
             parts = line.strip().split()
@@ -56,12 +62,19 @@ def _github_status() -> str:
     return "[green]✓[/green]"
 
 
+def _get_default_interface() -> str:
+    """Detect primary network interface dynamically."""
+    iface = _quick_run("ip route show default 2>/dev/null | awk '/default/{print $5}'")
+    return iface or "eth0"
+
+
 def _system_info() -> list[str]:
     """Compact system info lines."""
     try:
         import psutil
+
         vm = psutil.virtual_memory()
-        ram = f"{vm.used // (1024*1024)}M / {vm.total // (1024*1024)}M"
+        ram = f"{vm.used // (1024 * 1024)}M / {vm.total // (1024 * 1024)}M"
     except Exception:
         ram = _quick_run("free -m | awk '/^Mem:/{printf \"%dM / %dM\", $3, $2}'") or "n/a"
 
@@ -69,7 +82,9 @@ def _system_info() -> list[str]:
     if not disk:
         disk = _quick_run("df -h / | awk 'NR==2{print $3\"/\"$2}'") or "n/a"
 
-    temp = _quick_run("cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'")
+    temp = _quick_run(
+        "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'"
+    )
     temp_str = f"{temp}°C" if temp and temp.isdigit() else ""
 
     power = _quick_run("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'") or ""
@@ -88,6 +103,7 @@ def _system_info() -> list[str]:
 
 def project_list() -> list[str]:
     from arasul_tui.core.state import DEFAULT_PROJECT_ROOT
+
     try:
         return sorted([p.name for p in DEFAULT_PROJECT_ROOT.iterdir() if p.is_dir()], key=str.lower)
     except Exception:
@@ -97,13 +113,14 @@ def project_list() -> list[str]:
 def _project_detail(name: str) -> str:
     """Return short git info for a project (remote + branch)."""
     from arasul_tui.core.state import DEFAULT_PROJECT_ROOT
+
     project = DEFAULT_PROJECT_ROOT / name
     if not (project / ".git").exists():
-        return "[dim]lokal[/dim]"
+        return "[dim]local[/dim]"
     url = _quick_run(f"git -C {project} remote get-url origin 2>/dev/null")
     branch = _quick_run(f"git -C {project} symbolic-ref --short HEAD 2>/dev/null") or ""
     if not url:
-        parts = ["[dim]lokal[/dim]"]
+        parts = ["[dim]local[/dim]"]
     elif "github" in url:
         parts = ["github"]
     else:
@@ -118,7 +135,7 @@ def _git_info_short(project: Path | None) -> str:
         return ""
     url = _quick_run(f"git -C {project} remote get-url origin 2>/dev/null")
     if not url:
-        return "[dim]lokal[/dim]"
+        return "[dim]local[/dim]"
     host = "github" if "github" in url else "git"
     branch = _quick_run(f"git -C {project} symbolic-ref --short HEAD 2>/dev/null")
     if branch:
@@ -155,21 +172,21 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
     left = list(_system_info())
     left.append(f"GitHub: {_github_status()}")
 
-    right = ["[bold]Projekte[/bold]"]
+    right = ["[bold]Projects[/bold]"]
     projects = project_list()
     for i, name in enumerate(projects, 1):
         detail = _project_detail(name)
         right.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
     if not projects:
-        right.append(" [dim]Keine Projekte[/dim]")
+        right.append(" [dim]No projects[/dim]")
     right.append("")
-    right.append(f" [cyan]\\[n][/cyan]  Neues Projekt")
-    right.append(f" [cyan]\\[d][/cyan]  Projekt loeschen")
+    right.append(" [cyan]\\[n][/cyan]  New project")
+    right.append(" [cyan]\\[d][/cyan]  Delete project")
     right.append("")
     right.append("[bold]Quick Start[/bold]")
-    right.append(" [dim]/open <name>[/dim]  Projekt oeffnen")
-    right.append(" [dim]/claude[/dim]       Claude starten")
-    right.append(" [dim]/help[/dim]         Alle Befehle")
+    right.append(" [dim]/open <name>[/dim]  Open project")
+    right.append(" [dim]/claude[/dim]       Start Claude")
+    right.append(" [dim]/help[/dim]         All commands")
 
     left_w = (content_w - 3) // 2
     right_w = content_w - 3 - left_w
@@ -180,8 +197,8 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
     right += [""] * (max_h - len(right))
 
     return [
-        f"{_pad_right(l, left_w)} [dim]│[/dim] {_pad_right(r, right_w)}"
-        for l, r in zip(left, right)
+        f"{_pad_right(left_col, left_w)} [dim]│[/dim] {_pad_right(right_col, right_w)}"
+        for left_col, right_col in zip(left, right, strict=False)
     ]
 
 
@@ -197,8 +214,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
             if gi:
                 parts.append(gi)
         else:
-            parts.append("[dim]kein Projekt[/dim]")
-        title = " · ".join(parts)
+            parts.append("[dim]no project[/dim]")
         title_len = _vis_len(" [dim]·[/dim] ".join(parts)) + 2
         side = max(1, (w - title_len) // 2)
         right_side = max(1, w - title_len - side)
@@ -223,7 +239,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
     frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
     frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
 
-    logo_w = max(len(l) for l in logo_lines)
+    logo_w = max(len(ln) for ln in logo_lines)
     for line in logo_lines:
         left_pad = (content_w - logo_w) // 2
         padded = " " * left_pad + line.ljust(logo_w)
@@ -257,9 +273,9 @@ def print_project_menu(state: TuiState) -> None:
     console.print()
     console.print(f"{pad}[dim]{title}[/dim]", highlight=False)
     console.print()
-    console.print(f"{pad}[bold cyan]\\[c][/bold cyan]  Claude Code starten", highlight=False)
-    console.print(f"{pad}[bold cyan]\\[x][/bold cyan]  Codex starten", highlight=False)
-    console.print(f"{pad}[bold cyan]\\[b][/bold cyan]  Zurueck zur Uebersicht", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[c][/bold cyan]  Start Claude Code", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[x][/bold cyan]  Start Codex", highlight=False)
+    console.print(f"{pad}[bold cyan]\\[b][/bold cyan]  Back to overview", highlight=False)
     console.print()
 
 
@@ -301,13 +317,13 @@ def print_result(result: CommandResult) -> None:
 def print_step(current: int, total: int, title: str) -> None:
     pad = _content_pad()
     w = _adaptive_width() - 6
-    title_plain = f" {title} · Schritt {current}/{total} "
+    title_plain = f" {title} · Step {current}/{total} "
     side = max(1, (w - len(title_plain)) // 2)
     right = max(1, w - len(title_plain) - side)
     console.print()
     console.print(
         f"{pad}[cyan]{'─' * side}[/cyan]"
-        f" [bold]{title}[/bold] [dim]· Schritt {current}/{total}[/dim] "
+        f" [bold]{title}[/bold] [dim]· Step {current}/{total}[/dim] "
         f"[cyan]{'─' * right}[/cyan]",
         highlight=False,
     )

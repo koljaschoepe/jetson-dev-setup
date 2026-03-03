@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
@@ -23,4 +24,3 @@ class CommandResult:
     pending_handler: PendingHandler | None = None
     style: str | None = None
     wizard_step: tuple[int, int, str] | None = None
-

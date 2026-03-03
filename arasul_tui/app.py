@@ -10,20 +10,18 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.styles import Style
 
 from arasul_tui.core.auth import get_auth_env
-from arasul_tui.core.router import run_command, REGISTRY
-from arasul_tui.core.state import TuiState, DEFAULT_PROJECT_ROOT
+from arasul_tui.core.router import REGISTRY, run_command
+from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, TuiState
 from arasul_tui.core.types import PendingHandler
 from arasul_tui.core.ui import (
-    console,
-    print_header,
-    print_separator,
-    print_result,
-    print_project_menu,
     build_prompt,
-    project_list,
-    print_warning,
+    print_header,
     print_info,
-    print_success,
+    print_project_menu,
+    print_result,
+    print_separator,
+    print_warning,
+    project_list,
 )
 
 
@@ -66,14 +64,14 @@ class SlashCompleter(Completer):
                         full,
                         start_position=-len(text),
                         display=HTML(f"<b>/open</b> {name}"),
-                        display_meta="Projekt oeffnen",
+                        display_meta="Open project",
                     )
         elif cmd == "browser":
             browser_subs = {
-                "status": "Health-Check",
-                "test": "Verbindungstest",
-                "install": "Installieren/Update",
-                "mcp": "MCP konfigurieren",
+                "status": "Health check",
+                "test": "Connection test",
+                "install": "Install/update",
+                "mcp": "Configure MCP",
             }
             pref = ""
             if len(parts) >= 2 and not has_trailing_space:
@@ -102,10 +100,7 @@ def _handle_number(state: TuiState, num: int) -> bool:
 
 
 def _handle_action_shortcut(state: TuiState, key: str) -> tuple[bool, str | None]:
-    """Handle single-letter action shortcuts when a project is active.
-
-    Returns (handled, launch_command_or_none).
-    """
+    """Handle single-letter action shortcuts when a project is active."""
     if key == "c":
         return True, "claude"
     if key == "x":
@@ -119,15 +114,17 @@ def run() -> None:
     wizard_step: tuple[int, int, str] | None = None
     launch_request: tuple[str, Path] | None = None
     history = InMemoryHistory()
-    prompt_style = Style.from_dict({
-        "completion-menu":                         "bg:#1a1a1a",
-        "completion-menu.completion":              "bg:#1a1a1a #888888",
-        "completion-menu.completion.current":      "bg:#2d2d2d #ffffff bold",
-        "completion-menu.meta.completion":         "bg:#1a1a1a #555555",
-        "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
-        "scrollbar.background":                    "bg:#1a1a1a",
-        "scrollbar.button":                        "bg:#1a1a1a",
-    })
+    prompt_style = Style.from_dict(
+        {
+            "completion-menu": "bg:#1a1a1a",
+            "completion-menu.completion": "bg:#1a1a1a #888888",
+            "completion-menu.completion.current": "bg:#2d2d2d #ffffff bold",
+            "completion-menu.meta.completion": "bg:#1a1a1a #555555",
+            "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
+            "scrollbar.background": "bg:#1a1a1a",
+            "scrollbar.button": "bg:#1a1a1a",
+        }
+    )
     session: PromptSession[str] = PromptSession(
         history=history,
         completer=SlashCompleter(),
@@ -153,7 +150,6 @@ def run() -> None:
         if not command:
             continue
 
-        # Pending wizard handler takes priority
         if pending_handler:
             result = pending_handler(state, command)
             pending_handler = None
@@ -176,7 +172,6 @@ def run() -> None:
                 break
             continue
 
-        # "n" / "N" -> create new project
         if command.lower() == "n":
             result = run_command(state, "/create")
             print_result(result)
@@ -187,7 +182,6 @@ def run() -> None:
                 print_header(state, full=True)
             continue
 
-        # "d" / "D" -> delete project
         if command.lower() == "d":
             result = run_command(state, "/delete")
             print_result(result)
@@ -198,38 +192,41 @@ def run() -> None:
                 print_header(state, full=True)
             continue
 
-        # Number input -> select project
         if command.isdigit():
             num = int(command)
             if _handle_number(state, num):
                 print_project_menu(state)
                 continue
             else:
-                print_warning(f"Kein Projekt mit Nummer [bold]{num}[/bold].")
+                print_warning(f"No project with number [bold]{num}[/bold].")
                 continue
 
-        # "b" -> back to overview (works with or without active project)
         if command.lower() == "b":
             state.active_project = None
             print_header(state, full=True)
             continue
 
-        # Single-letter action shortcuts (when project is active)
         if len(command) == 1 and command.lower() in ("c", "x") and state.active_project:
             handled, launch_cmd = _handle_action_shortcut(state, command.lower())
             if handled and launch_cmd:
                 import subprocess
+
                 binary = subprocess.run(
                     f"command -v {launch_cmd}",
-                    shell=True, check=False, capture_output=True, text=True,
+                    shell=True,
+                    check=False,
+                    capture_output=True,
+                    text=True,
                 )
                 if binary.returncode != 0:
                     from arasul_tui.core.ui import print_error
-                    print_error(f"[bold]{launch_cmd}[/bold] nicht gefunden.")
+
+                    print_error(f"[bold]{launch_cmd}[/bold] not found.")
                     continue
 
                 if launch_cmd == "claude":
                     from arasul_tui.core.auth import is_claude_configured
+
                     if not is_claude_configured():
                         result = run_command(state, "/claude")
                         print_result(result)
@@ -238,11 +235,10 @@ def run() -> None:
                             wizard_step = result.wizard_step
                         continue
 
-                print_info(f"Starte [bold]{launch_cmd}[/bold] in [dim]{state.active_project}[/dim] ...")
+                print_info(f"Starting [bold]{launch_cmd}[/bold] in [dim]{state.active_project}[/dim] ...")
                 launch_request = (launch_cmd, state.active_project)
                 break
 
-        # Slash commands (power-user path)
         result = run_command(state, command)
         print_result(result)
 

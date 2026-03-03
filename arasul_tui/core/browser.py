@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -36,6 +35,7 @@ def _find_chromium_binary() -> Path | None:
 def is_playwright_installed() -> bool:
     try:
         import playwright  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -48,43 +48,44 @@ def is_chromium_installed() -> bool:
 def ensure_browser() -> tuple[bool, str]:
     """Check if headless browser stack is ready. Returns (ok, message)."""
     if not is_playwright_installed():
-        return False, "Playwright Python nicht installiert. Fuehre /browser install aus."
+        return False, "Playwright not installed. Run /browser install."
     if not is_chromium_installed():
-        return False, "Chromium nicht gefunden. Fuehre /browser install aus."
-    return True, "Playwright + Chromium bereit."
+        return False, "Chromium not found. Run /browser install."
+    return True, "Playwright + Chromium ready."
 
 
 def browser_health() -> list[str]:
     """Detailed health check, returns status lines."""
-    lines: list[str] = ["Browser Health-Check"]
+    lines: list[str] = ["Browser Health Check"]
 
     pw_ok = is_playwright_installed()
     if pw_ok:
         try:
             import playwright
+
             lines.append(f"  Playwright: v{playwright.__version__}")
         except Exception:
-            lines.append("  Playwright: installiert (Version unbekannt)")
+            lines.append("  Playwright: installed (version unknown)")
     else:
-        lines.append("  Playwright: NICHT installiert")
+        lines.append("  Playwright: NOT installed")
 
     chrome_bin = _find_chromium_binary()
     if chrome_bin:
         lines.append(f"  Chromium: {chrome_bin}")
     else:
-        lines.append("  Chromium: NICHT gefunden")
+        lines.append("  Chromium: NOT found")
 
     cache = _browsers_path()
     lines.append(f"  Cache: {cache}")
     if cache.exists():
         try:
             size_mb = sum(f.stat().st_size for f in cache.rglob("*") if f.is_file()) / (1024 * 1024)
-            lines.append(f"  Cache-Groesse: {size_mb:.0f} MB")
+            lines.append(f"  Cache size: {size_mb:.0f} MB")
         except Exception:
             pass
 
     mcp_ok = is_mcp_configured()
-    lines.append(f"  MCP Server: {'konfiguriert' if mcp_ok else 'NICHT konfiguriert'}")
+    lines.append(f"  MCP Server: {'configured' if mcp_ok else 'NOT configured'}")
 
     return lines
 
@@ -100,7 +101,8 @@ def browser_test() -> tuple[bool, list[str]]:
         env["PLAYWRIGHT_BROWSERS_PATH"] = str(_browsers_path())
         result = subprocess.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "from playwright.sync_api import sync_playwright\n"
                 "with sync_playwright() as p:\n"
                 "    b = p.chromium.launch(headless=True)\n"
@@ -110,16 +112,19 @@ def browser_test() -> tuple[bool, list[str]]:
                 "    b.close()\n"
                 "    print('OK')\n",
             ],
-            capture_output=True, text=True, timeout=30, env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
         )
         if result.returncode == 0 and "OK" in result.stdout:
-            return True, ["Browser-Test erfolgreich: Chromium headless laeuft."]
-        stderr = result.stderr.strip()[:200] if result.stderr else "unbekannter Fehler"
-        return False, [f"Browser-Test fehlgeschlagen: {stderr}"]
+            return True, ["Browser test successful: Chromium headless is running."]
+        stderr = result.stderr.strip()[:200] if result.stderr else "unknown error"
+        return False, [f"Browser test failed: {stderr}"]
     except subprocess.TimeoutExpired:
-        return False, ["Browser-Test Timeout (30s). Netzwerk oder Chromium Problem."]
+        return False, ["Browser test timeout (30s). Network or Chromium issue."]
     except Exception as exc:
-        return False, [f"Browser-Test Fehler: {exc}"]
+        return False, [f"Browser test error: {exc}"]
 
 
 def install_browser() -> tuple[bool, list[str]]:
@@ -127,26 +132,31 @@ def install_browser() -> tuple[bool, list[str]]:
     lines: list[str] = []
 
     if not is_playwright_installed():
-        lines.append("Installiere Playwright...")
+        lines.append("Installing Playwright...")
         result = subprocess.run(
             ["pip3", "install", "playwright"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if result.returncode != 0:
-            return False, lines + [f"pip install playwright fehlgeschlagen: {result.stderr[:200]}"]
-        lines.append("Playwright installiert.")
+            return False, lines + [f"pip install playwright failed: {result.stderr[:200]}"]
+        lines.append("Playwright installed.")
 
     cache = _browsers_path()
-    lines.append(f"Lade Chromium nach {cache}...")
+    lines.append(f"Downloading Chromium to {cache}...")
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = str(cache)
     result = subprocess.run(
         ["python3", "-m", "playwright", "install", "chromium"],
-        capture_output=True, text=True, timeout=300, env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        env=env,
     )
     if result.returncode != 0:
-        return False, lines + [f"Chromium-Download fehlgeschlagen: {result.stderr[:200]}"]
-    lines.append("Chromium heruntergeladen.")
+        return False, lines + [f"Chromium download failed: {result.stderr[:200]}"]
+    lines.append("Chromium downloaded.")
 
     return True, lines
 
@@ -179,4 +189,4 @@ def configure_mcp() -> tuple[bool, str]:
     }
 
     CLAUDE_JSON.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return True, "Playwright MCP Server in ~/.claude.json konfiguriert."
+    return True, "Playwright MCP server configured in ~/.claude.json."

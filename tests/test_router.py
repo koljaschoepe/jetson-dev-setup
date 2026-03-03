@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from arasul_tui.core.router import REGISTRY, run_command
+from arasul_tui.core.state import TuiState
+
+
+def test_empty_input(state: TuiState):
+    result = run_command(state, "")
+    assert result.ok is True
+    assert result.style == "silent"
+
+
+def test_empty_after_strip(state: TuiState):
+    result = run_command(state, "   ")
+    assert result.ok is True
+
+
+def test_unknown_command_no_slash(state: TuiState):
+    result = run_command(state, "foobar")
+    assert result.ok is False
+
+
+def test_unknown_slash_command(state: TuiState):
+    result = run_command(state, "/nonexistent")
+    assert result.ok is False
+
+
+def test_help_command(state: TuiState):
+    result = run_command(state, "/help")
+    assert result.ok is True
+    assert result.style == "silent"
+
+
+def test_exit_command(state: TuiState):
+    result = run_command(state, "/exit")
+    assert result.ok is True
+    assert result.quit_app is True
+
+
+def test_registry_has_all_commands():
+    expected = {"help", "open", "create", "clone", "status", "claude", "codex", "git", "browser", "delete", "exit"}
+    actual = set(REGISTRY.names())
+    assert expected == actual
+
+
+def test_slash_only(state: TuiState):
+    result = run_command(state, "/")
+    assert result.ok is True
+    assert result.style == "silent"

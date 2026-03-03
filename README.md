@@ -1,467 +1,452 @@
-# jetson-dev-setup
+# Arasul
 
-> Automatisiertes Setup-Tool für NVIDIA Jetson Orin Nano Super als Headless Development Server. Optimiert für SSH + Claude Code Workflows.
+> Automated setup tool for turning an NVIDIA Jetson Orin Nano Super into a headless development server. Optimized for SSH + AI coding workflows (Claude Code, Codex).
 
 ---
 
-## Komplette Schritt-für-Schritt Anleitung
+## Complete Step-by-Step Guide
 
-Diese Anleitung führt dich vom ungeöffneten Karton zum fertigen, remote-erreichbaren Dev-Server. Wir flashen **direkt auf die NVMe SSD** — keine SD-Karte nötig.
+This guide takes you from an unopened box to a fully configured, remotely accessible dev server. We flash **directly to the NVMe SSD** — no SD card required.
 
-### Zwei Rechner, klare Rollen
+### Two Machines, Clear Roles
 
-| Rechner | Rolle | Wann |
-|---------|-------|------|
-| **Ubuntu-Laptop** (x86_64) | Flashen, serielle Konsole, oem-config | Nur bei Ersteinrichtung (Phase 1–4) |
-| **Mac** (dein Arbeitsrechner) | SSH-Zugang, tägliche Entwicklung | Ab Phase 5, danach dauerhaft |
+| Machine | Role | When |
+|---------|------|------|
+| **Ubuntu Laptop** (x86_64) | Flashing, serial console, oem-config | Initial setup only (Phase 1–4) |
+| **Mac** (your workstation) | SSH access, daily development | From Phase 5 onward, permanently |
 
-Nach der Ersteinrichtung brauchst du den Ubuntu-Laptop **nie wieder** — der Jetson läuft headless und du arbeitest ausschließlich per SSH vom Mac.
+After initial setup you **never need the Ubuntu laptop again** — the Jetson runs headless and you work exclusively via SSH from your Mac.
 
-### Was du brauchst
+### What You Need
 
-#### Hardware-Checkliste
+#### Hardware Checklist
 
-| # | Komponente | Details | Woher |
-|---|-----------|---------|-------|
+| # | Component | Details | Source |
+|---|-----------|---------|--------|
 | 1 | Jetson Orin Nano Super Dev Kit | 8GB LPDDR5 | NVIDIA / Distributor |
-| 2 | NVMe M.2 2280 PCIe SSD | 256GB–2TB, z.B. Samsung 980 PRO, WD SN770 | Elektronikhandel |
-| 3 | USB-C Kabel | Daten-fähig (nicht nur Ladekabel!) | Beigelegt oder separat |
-| 4 | Ethernet-Kabel | Cat5e oder Cat6 | Standard |
-| 5 | 19V DC Netzteil | Im Dev Kit enthalten | Beigelegt |
-| 6 | Kreuzschraubendreher | Klein (Phillips #1), für SSD-Montage | Werkzeugkasten |
-| 7 | **Büroklammer** (oder Pinzette) | Zum kurzzeitigen Verbinden von 2 Pins für den Recovery-Modus (siehe Phase 2) | Schreibtisch |
+| 2 | NVMe M.2 2280 PCIe SSD | 256GB–2TB, e.g. Samsung 980 PRO, WD SN770 | Electronics retailer |
+| 3 | USB-C Cable | Data-capable (not charge-only!) | Included or separate |
+| 4 | Ethernet Cable | Cat5e or Cat6 | Standard |
+| 5 | 19V DC Power Supply | Included with Dev Kit | Included |
+| 6 | Phillips Screwdriver | Small (#1), for SSD mounting | Toolbox |
+| 7 | **Paperclip** (or tweezers) | To briefly short 2 pins for Recovery Mode (see Phase 2) | Desk |
 
-#### Software auf dem Ubuntu-Laptop (Flash-Host)
+#### Software on the Ubuntu Laptop (Flash Host)
 
 | # | Software | Installation |
-|---|---------|-------------|
-| 1 | **NVIDIA SDK Manager** (.deb) | Von [developer.nvidia.com/sdk-manager](https://developer.nvidia.com/sdk-manager) → **Download .deb (Ubuntu)** herunterladen |
-| 2 | **screen** | `sudo apt install screen` (für serielle Konsole) |
-| 3 | **NVIDIA Developer Account** | Kostenlos registrieren unter [developer.nvidia.com](https://developer.nvidia.com) |
+|---|----------|-------------|
+| 1 | **NVIDIA SDK Manager** (.deb) | Download from [developer.nvidia.com/sdk-manager](https://developer.nvidia.com/sdk-manager) → **Download .deb (Ubuntu)** |
+| 2 | **screen** | `sudo apt install screen` (for serial console) |
+| 3 | **NVIDIA Developer Account** | Free registration at [developer.nvidia.com](https://developer.nvidia.com) |
 
-> **Wichtig:** Der SDK Manager läuft **nur auf Ubuntu x86_64** (20.04 oder 22.04). Lade die **.deb-Variante** herunter, nicht das Docker-Image.
+> **Important:** The SDK Manager only runs on **Ubuntu x86_64** (20.04 or 22.04). Download the **.deb variant**, not the Docker image.
 
-#### Software auf dem Mac (Arbeitsrechner)
+#### Software on the Mac (Workstation)
 
 | # | Software | Status |
-|---|---------|--------|
-| 1 | **SSH-Client** | Vorinstalliert auf macOS |
-| 2 | **Homebrew** (optional) | Paketmanager für macOS — wird benötigt, falls du `screen` für die serielle Konsole nutzen willst |
+|---|----------|--------|
+| 1 | **SSH Client** | Pre-installed on macOS |
+| 2 | **Homebrew** (optional) | Package manager for macOS — needed if you want `screen` for serial console |
 
-**Homebrew installieren (falls noch nicht vorhanden):**
+**Install Homebrew (if not already present):**
 
 ```bash
-# Prüfen ob Homebrew bereits installiert ist
 brew --version
 
-# Falls nicht: Homebrew installieren
+# If not installed:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-> Nach der Installation zeigt das Script die nötigen PATH-Befehle an. Typischerweise:
-> ```bash
-> echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-> eval "$(/opt/homebrew/bin/brew shellenv)"
-> ```
-> Danach Terminal neu starten oder den `eval`-Befehl ausführen.
-
 ---
 
-### Phase 1: NVMe SSD einbauen
+### Phase 1: Install NVMe SSD
 
-> **Wann:** Vor dem ersten Einschalten. Der Jetson ist aus, kein Kabel angeschlossen.
+> **When:** Before first power-on. The Jetson is off, no cables connected.
 
-**Schritt 1.1 — Dev Kit aus der Verpackung nehmen**
+**Step 1.1 — Unbox the Dev Kit**
 
-Inhalt der Box prüfen:
-- Jetson Orin Nano Super Modul (auf Carrier Board vormontiert)
-- 19V DC Netzteil mit Kabel
+Check box contents:
+- Jetson Orin Nano Super Module (pre-mounted on Carrier Board)
+- 19V DC power supply with cable
 - Quick Start Guide
 
-**Schritt 1.2 — Carrier Board umdrehen**
+**Step 1.2 — Flip the Carrier Board**
 
-- Lege das Board mit der Unterseite nach oben auf eine antistatische Unterlage
-- Der M.2 Key-M Slot befindet sich auf der **Unterseite** des Carrier Boards
-- Du erkennst ihn am langen Steckplatz mit einer Schraube daneben
+- Place the board upside down on an anti-static surface
+- The M.2 Key-M slot is on the **bottom** of the Carrier Board
+- Look for the long connector with a screw hole next to it
 
-**Schritt 1.3 — NVMe SSD einsetzen**
+**Step 1.3 — Insert the NVMe SSD**
 
-1. Entferne die Befestigungsschraube neben dem M.2 Slot (falls vorhanden)
-2. Setze die NVMe SSD in einem **30°-Winkel** in den Slot ein (goldene Kontakte voran)
-3. Drücke die SSD vorsichtig nach unten, bis sie flach aufliegt
-4. Befestige sie mit der Schraube — **nicht zu fest anziehen!**
+1. Remove the mounting screw next to the M.2 slot (if present)
+2. Insert the NVMe SSD at a **30° angle** into the slot (gold contacts first)
+3. Gently press the SSD down until it lies flat
+4. Secure with the screw — **don't over-tighten!**
 
-**Schritt 1.4 — Board wieder umdrehen**
+**Step 1.4 — Flip the Board Back**
 
-- Carrier Board mit der Oberseite nach oben hinlegen
-- Prüfe, dass das Jetson-Modul (der große grüne Chip mit Kühlkörper) fest sitzt
+- Place the Carrier Board right-side up
+- Check that the Jetson module (the large green chip with heatsink) is firmly seated
 
 ---
 
-### Phase 2: Jetson in Recovery-Modus versetzen
+### Phase 2: Enter Recovery Mode
 
-> **Wann:** Direkt nach dem SSD-Einbau. Noch KEIN Netzteil anschließen.
+> **When:** Right after SSD installation. Do NOT connect the power supply yet.
 
-#### Wichtig: Es gibt keine physischen Buttons!
+#### Important: There Are No Physical Buttons!
 
-Das Jetson Orin Nano Dev Kit hat **keine eingebauten Taster**. Stattdessen gibt es den **Button Header (J14)** — eine kleine 12-Pin-Leiste auf dem Carrier Board. Für den Recovery-Modus musst du nur **zwei Pins kurz mit einer Büroklammer verbinden** — das dauert 3 Sekunden.
+The Jetson Orin Nano Dev Kit has **no built-in buttons**. Instead, there's the **Button Header (J14)** — a small 12-pin header on the Carrier Board. For Recovery Mode you just need to **briefly short two pins with a paperclip** — takes 3 seconds.
 
-**Was als "Jumper" funktioniert** (du brauchst kein spezielles Kabel):
+**What works as a "jumper"** (no special cable needed):
 
-| Haushaltsmittel | Anleitung |
-|----------------|-----------|
-| **Büroklammer** (empfohlen) | Aufbiegen, sodass zwei Enden parallel abstehen. Damit beide Pins gleichzeitig berühren. |
-| **Pinzette** (Metall) | Metallspitzen auf die zwei Pins drücken. |
-| **Abisoliertes Kabelende** | Ein kurzes Stück Draht, z.B. aus einem alten Ladekabel. |
+| Household item | Instructions |
+|----------------|-------------|
+| **Paperclip** (recommended) | Straighten so two ends are parallel. Touch both pins simultaneously. |
+| **Tweezers** (metal) | Press metal tips onto the two pins. |
+| **Stripped wire end** | A short piece of wire, e.g. from an old charging cable. |
 
-> Die Pins haben nur **2,54 mm Abstand** — das ist sehr nah beieinander. Jedes Stück Metall, das zwei Pins gleichzeitig berührt, reicht.
+> The pins are only **2.54mm apart** — very close together. Any piece of metal that touches both pins simultaneously will work.
 
-#### Button Header (J14) finden
+#### Finding Button Header (J14)
 
-Der Header ist ein kleiner 12-Pin-Stecker auf dem Carrier Board. Suche nach der Beschriftung **J14** auf dem PCB (in der Nähe der Anschlüsse).
+The header is a small 12-pin connector on the Carrier Board. Look for the label **J14** on the PCB (near the ports).
 
 ```
-Button Header (J14) — Pin-Belegung:
+Button Header (J14) — Pin Layout:
 
      ┌──────────────────────────┐
      │  12  10   8   6   4   2  │
      │  11   9   7   5   3   1  │
      └──────────────────────────┘
 
-  Pins 9+10 → Force Recovery Mode ← DAS BRAUCHST DU
+  Pins 9+10 → Force Recovery Mode ← THIS IS WHAT YOU NEED
   Pins 7+8  → Reset
   Pins 1+2  → Power On/Off
 ```
 
-**Schritt 2.1 — USB-C Kabel verbinden**
+**Step 2.1 — Connect USB-C Cable**
 
-- Stecke das **USB-C Kabel** in den **USB-C Port des Jetson** (neben den USB-A Ports)
-- Das andere Ende kommt in den **Ubuntu-Laptop**
-- Noch **kein Netzteil** anschließen!
+- Plug the **USB-C cable** into the **Jetson's USB-C port** (next to the USB-A ports)
+- The other end goes into the **Ubuntu laptop**
+- Do **NOT** connect the power supply yet!
 
-**Schritt 2.2 — Recovery-Modus aktivieren (mit Büroklammer)**
+**Step 2.2 — Activate Recovery Mode (with Paperclip)**
 
-Büroklammer aufbiegen und bereithalten. Dann **exakt in dieser Reihenfolge**:
+Straighten paperclip and have it ready. Then **in exactly this order**:
 
-1. **Büroklammer auf Pins 9 und 10** drücken — beide Pins gleichzeitig berühren und **halten**
-2. **Während die Büroklammer die Pins verbindet:** Stecke das **19V Netzteil** ein
-3. **Warte 2–3 Sekunden**
-4. **Büroklammer entfernen**
+1. **Press paperclip onto Pins 9 and 10** — touch both pins simultaneously and **hold**
+2. **While the paperclip connects the pins:** Plug in the **19V power supply**
+3. **Wait 2–3 seconds**
+4. **Remove paperclip**
 
-Der Jetson startet jetzt **nicht** normal, sondern geht in den Recovery-Modus (kein Bildschirm-Output, kein Fan-Spin — das ist normal).
+The Jetson now starts in Recovery Mode (no screen output, no fan spin — this is normal).
 
-> **Gut zu wissen:** Falls der Jetson später bereits läuft und du erneut in den Recovery-Modus musst, geht das auch per Software:
+> **Good to know:** If the Jetson is already running and you need Recovery Mode again, you can also do it via software:
 > ```bash
 > sudo reboot --force forced-recovery
 > ```
 
-**Schritt 2.3 — Recovery-Modus verifizieren**
+**Step 2.3 — Verify Recovery Mode**
 
-Auf dem **Ubuntu-Laptop** im Terminal prüfen:
+On the **Ubuntu laptop** terminal:
 
 ```bash
 lsusb | grep -i nvidia
 ```
 
-Erwartete Ausgabe (ähnlich wie):
+Expected output (similar to):
 ```
 Bus 001 Device 023: ID 0955:7523 NVIDIA Corp. APX
 ```
 
-Wenn du `NVIDIA Corp.` siehst, ist der Jetson im Recovery-Modus. Falls nicht:
-- Prüfe das USB-C Kabel (muss Daten unterstützen, nicht nur Laden)
-- Versuche einen anderen USB-Port am Host (direkt am Mainboard, nicht über Hub)
-- Wiederhole Schritt 2.2
+If you see `NVIDIA Corp.`, the Jetson is in Recovery Mode. If not:
+- Check USB-C cable (must support data, not just charging)
+- Try a different USB port on the host (directly on mainboard, not through a hub)
+- Repeat Step 2.2
 
 ---
 
-### Phase 3: JetPack auf NVMe flashen
+### Phase 3: Flash JetPack to NVMe
 
-> **Wann:** Jetson ist im Recovery-Modus (Phase 2 abgeschlossen). Du sitzt am **Ubuntu-Laptop**.
+> **When:** Jetson is in Recovery Mode (Phase 2 complete). You're at the **Ubuntu laptop**.
 
-**Schritt 3.1 — SDK Manager installieren (falls noch nicht geschehen)**
+**Step 3.1 — Install SDK Manager (if not already done)**
 
-Auf dem **Ubuntu-Laptop**:
+On the **Ubuntu laptop**:
 
-1. Gehe zu [developer.nvidia.com/sdk-manager](https://developer.nvidia.com/sdk-manager)
-2. Klicke auf **Download** → wähle **.deb (Ubuntu)**
-3. Es wird eine Datei wie `sdkmanager_2.x.x-xxxxx_amd64.deb` heruntergeladen
+1. Go to [developer.nvidia.com/sdk-manager](https://developer.nvidia.com/sdk-manager)
+2. Click **Download** → choose **.deb (Ubuntu)**
+3. A file like `sdkmanager_2.x.x-xxxxx_amd64.deb` will be downloaded
 
 ```bash
-# Im Download-Verzeichnis:
 cd ~/Downloads
 sudo apt install ./sdkmanager_*_amd64.deb
 ```
 
-> Falls Abhängigkeiten fehlen, anschließend: `sudo apt --fix-broken install`
+> If dependencies are missing: `sudo apt --fix-broken install`
 
-**Schritt 3.2 — SDK Manager starten**
+**Step 3.2 — Launch SDK Manager**
 
 ```bash
 sdkmanager
 ```
 
-Ein GUI-Fenster öffnet sich. Melde dich mit deinem **NVIDIA Developer Account** an (kostenlos registrieren unter [developer.nvidia.com](https://developer.nvidia.com)).
+A GUI window opens. Log in with your **NVIDIA Developer Account** (free registration at [developer.nvidia.com](https://developer.nvidia.com)).
 
-**Schritt 3.3 — Step 1: Development Environment**
+**Step 3.3 — Step 1: Development Environment**
 
-| Einstellung | Wert |
-|------------|------|
+| Setting | Value |
+|---------|-------|
 | Product Category | Jetson |
 | Hardware Configuration | **Jetson Orin Nano Super Developer Kit** |
 | Target OS | **JetPack 6.2.2** / Linux |
-| DeepStream | Abwählen (brauchen wir nicht) |
+| DeepStream | Deselect (not needed) |
 
-> Falls der Jetson nicht automatisch erkannt wird: Prüfe die USB-Verbindung (Phase 2 wiederholen).
+> If the Jetson isn't auto-detected: check USB connection (repeat Phase 2).
 
-Klicke **Continue**.
+Click **Continue**.
 
-**Schritt 3.4 — Step 2: Components**
+**Step 3.4 — Step 2: Components**
 
-- **Jetson Linux** (BSP): Muss ausgewählt sein ✓
-- **Jetson Runtime Components**: Empfohlen ✓
-- **Jetson SDK Components** (CUDA, cuDNN, TensorRT): Optional — nimmt ~5GB, empfohlen für AI/ML
+- **Jetson Linux** (BSP): Must be selected ✓
+- **Jetson Runtime Components**: Recommended ✓
+- **Jetson SDK Components** (CUDA, cuDNN, TensorRT): Optional — takes ~5GB, recommended for AI/ML
 
-Akzeptiere die Lizenzvereinbarungen. Klicke **Continue**.
+Accept license agreements. Click **Continue**.
 
-**Schritt 3.5 — Step 3: Flash-Einstellungen (WICHTIG!)**
+**Step 3.5 — Step 3: Flash Settings (IMPORTANT!)**
 
-Hier wird festgelegt, **wohin** JetPack installiert wird:
+This determines **where** JetPack gets installed:
 
-| Einstellung | Wert |
-|------------|------|
+| Setting | Value |
+|---------|-------|
 | Flash Method | **Manual Setup** |
-| Storage Device | **NVMe** ← **Kritisch! Nicht eMMC oder SD Card!** |
-| OEM Configuration | **Pre-Config** (Benutzer wird direkt im SDK Manager angelegt) |
+| Storage Device | **NVMe** ← **Critical! Not eMMC or SD Card!** |
+| OEM Configuration | **Pre-Config** (user is created directly in SDK Manager) |
 
-> **Achtung:** Standardmäßig will SDK Manager auf die interne eMMC oder SD-Karte flashen. Du musst **explizit NVMe** als Speicherziel auswählen. Wenn die Option nicht sichtbar ist:
-> - Stelle sicher, dass die NVMe SSD physisch eingebaut ist
-> - Manche JetPack-Versionen zeigen NVMe erst, wenn du "Manual Setup" wählst
+> **Warning:** By default, SDK Manager wants to flash to internal eMMC or SD card. You must **explicitly select NVMe** as the storage target. If the option isn't visible:
+> - Make sure the NVMe SSD is physically installed
+> - Some JetPack versions only show NVMe when you select "Manual Setup"
 
-Klicke **Flash**. Der Vorgang dauert **10–30 Minuten** je nach SSD-Geschwindigkeit und Netzwerkverbindung (SDK-Komponenten werden heruntergeladen).
+Click **Flash**. The process takes **10–30 minutes** depending on SSD speed and network connection.
 
-**Schritt 3.6 — Flash-Fortschritt abwarten**
+**Step 3.6 — Wait for Flash to Complete**
 
-Der SDK Manager zeigt den Fortschritt an:
+The SDK Manager shows progress:
 
-1. ⏳ Herunterladen der Komponenten (einmalig, wird gecacht)
-2. ⏳ Erstellen des Filesystem-Images
-3. ⏳ Flashen auf die NVMe SSD
-4. ⏳ Installieren der SDK-Komponenten
+1. Downloading components (one-time, gets cached)
+2. Creating filesystem image
+3. Flashing to NVMe SSD
+4. Installing SDK components
 
-**Nicht unterbrechen!** Kein USB-Kabel ziehen, keinen Strom trennen.
+**Do not interrupt!** Don't unplug USB or power.
 
-Wenn der Flash abgeschlossen ist, startet der Jetson automatisch von der NVMe SSD neu.
+When flash is complete, the Jetson automatically reboots from the NVMe SSD.
 
 ---
 
-### Phase 4: Setup über serielle Konsole ausführen
+### Phase 4: Run Setup via Serial Console
 
-> **Wann:** Direkt nach dem Flash. Der Jetson bootet zum ersten Mal von der NVMe SSD. Du bleibst am **Flash-Rechner** (Ubuntu-Laptop oder Mac).
+> **When:** Right after flash. The Jetson is booting for the first time from NVMe SSD. Stay at the **Flash machine** (Ubuntu laptop or Mac).
 >
-> **Ziel:** Alles in einem Rutsch über die serielle Konsole erledigen — Repo klonen, Setup ausführen, Neustart. Danach muss nur noch der SSH-Key vom Mac kopiert werden.
+> **Goal:** Complete everything in one go via serial console — clone repo, run setup, reboot. After that, only the SSH key needs to be copied from the Mac.
 
-Da du in Phase 3 **Pre-Config** gewählt hast, wurden Benutzername, Passwort und Systemeinstellungen bereits im SDK Manager konfiguriert. Der Jetson bootet direkt in ein fertig eingerichtetes System.
+Since you chose **Pre-Config** in Phase 3, username, password, and system settings were already configured in SDK Manager. The Jetson boots into a ready-to-use system.
 
-**Schritt 4.1 — Serielle Konsole verbinden**
+**Step 4.1 — Connect Serial Console**
 
-Das **gleiche USB-C Kabel** vom Flashen dient als serielle Konsole. Warte **1–3 Minuten** nach dem Flash, bis der Jetson gebootet ist.
+The **same USB-C cable** from flashing serves as serial console. Wait **1–3 minutes** after flash until the Jetson has booted.
 
 ```bash
-# Serielles Gerät finden
+# Find serial device
 ls /dev/ttyACM*
-# Typisch: /dev/ttyACM0 oder /dev/ttyACM1
+# Typically: /dev/ttyACM0 or /dev/ttyACM1
 ```
 
-Verbindung herstellen — je nach Host-System:
+Connect — depending on host system:
 
 ```bash
-# Ubuntu-Laptop: screen ist über apt verfügbar
-sudo apt install screen          # einmalig
+# Ubuntu laptop
+sudo apt install screen          # one-time
 sudo screen /dev/ttyACM0 115200
 
-# macOS: Device-Pfad ermitteln, dann screen nutzen
-ls /dev/cu.usbmodem*             # zeigt z.B. /dev/cu.usbmodem14101
-brew install screen              # einmalig
+# macOS: find device path, then use screen
+ls /dev/cu.usbmodem*             # shows e.g. /dev/cu.usbmodem14101
+brew install screen              # one-time
 screen /dev/cu.usbmodem* 115200
 
-# macOS Alternative: cu ist bereits vorinstalliert (kein Homebrew nötig)
+# macOS alternative: cu is pre-installed (no Homebrew needed)
 sudo cu -l /dev/cu.usbmodem14101 -s 115200
 ```
 
-> **Wichtig:** Nach dem Verbinden **Enter drücken** — die Konsole zeigt erst dann den Login-Prompt.
+> **Important:** After connecting, **press Enter** — the console only shows the login prompt then.
 >
-> **Beenden:** `screen` mit `Ctrl+A` dann `K` — `cu` mit `~.` (Tilde + Punkt).
+> **Exit:** `screen` with `Ctrl+A` then `K` — `cu` with `~.` (tilde + period).
 
-**Schritt 4.2 — Einloggen und Netzwerk prüfen**
+**Step 4.2 — Log In and Check Network**
 
 ```bash
-login: dein-benutzername
-Password: dein-passwort
+login: your-username
+Password: your-password
 ```
 
-Ethernet-Kabel muss am Jetson stecken (Router/Switch). IP prüfen (auf dem **Jetson**, nicht auf dem Laptop!):
+Ethernet cable must be plugged into the Jetson (router/switch). Check IP (on the **Jetson**, not the laptop!):
 
 ```bash
-# Netzwerk-Interface herausfinden
 ip link show
-# Typisch: eth0 — kann aber auch enp1s0 o.ä. heißen
+# Typical: eth0 — but could also be enP8p1s0 etc.
 
-# IP anzeigen (Interface-Name anpassen falls nötig)
 ip addr show eth0 | grep "inet "
-# Ausgabe z.B.: inet 192.168.1.42/24 ...
+# Output e.g.: inet 192.168.1.42/24 ...
 ```
 
-> Falls `eth0` nicht existiert, nutze den Interface-Namen aus `ip link show`.
->
-> Notiere dir die **IP-Adresse** — du brauchst sie in Phase 5 für SSH vom Mac.
+> Note the **IP address** — you'll need it in Phase 5 for SSH from the Mac.
 
-**Schritt 4.3 — Repo klonen und Setup starten**
+**Step 4.3 — Clone Repo and Run Setup**
 
 ```bash
-git clone https://github.com/koljaschoepe/jetson-dev-setup.git
-cd jetson-dev-setup
+git clone https://github.com/koljaschoepe/arasul.git
+cd arasul
 sudo ./setup.sh --interactive
 ```
 
-Das Script fragt alle nötigen Werte ab:
+The script prompts for all required values:
 
 ```
-Kundenname / Projektname: Firma-XY
-Jetson Benutzername: arasul
+Customer/Project name: my-project
+Jetson username: arasul
 Hostname [jetson]: jetson
-Swap-Größe [32G]: 32G
-Tailscale installieren? (true/false) [false]: false
-Git Name: Max Mustermann
-Git Email: max@firma.de
-Claude Code installieren? (true/false) [true]: true
+Swap size [32G]: 32G
+Install Tailscale? (true/false) [false]: false
+Git name: Your Name
+Git email: you@example.com
+Install Claude Code? (true/false) [true]: true
 ```
 
-> **Alternativ:** Statt `--interactive` kannst du die `.env` manuell bearbeiten:
+> **Alternative:** Instead of `--interactive` you can edit `.env` manually:
 > ```bash
 > cp .env.example .env
-> nano .env           # Alle CHANGEME-Werte anpassen
+> nano .env           # Adjust all CHANGEME values
 > sudo ./setup.sh
 > ```
 
-**Schritt 4.4 — Setup-Fortschritt beobachten**
+**Step 4.4 — Watch Setup Progress**
 
-Das Script durchläuft 7 Schritte:
+The script runs through 8 steps:
 
-| Schritt | Was passiert | Dauer |
-|---------|-------------|-------|
-| 1 | GUI deaktivieren, unnötige Services stoppen, Kernel-Parameter tunen | ~3 Min |
-| 2 | Hostname setzen, mDNS (Avahi) aktivieren, optional Tailscale | ~1 Min |
-| 3 | SSH auf Key-Only umstellen, fail2ban installieren | ~1 Min |
-| 4 | NVMe partitionieren (falls nötig), mounten, 32GB Swap, Verzeichnisse anlegen | ~2 Min |
-| 5 | Docker-Datenverzeichnis auf NVMe, NVIDIA Container Runtime konfigurieren | ~2 Min |
-| 6 | Node.js 22, Python3, Git, Claude Code CLI, jtop installieren | ~5 Min |
-| 7 | tmux-Config, Shell-Aliases, Custom Prompt, MOTD | ~1 Min |
+| Step | What Happens | Duration |
+|------|-------------|----------|
+| 1 | Disable GUI, stop unnecessary services, tune kernel | ~3 min |
+| 2 | Set hostname, enable mDNS (Avahi), optional Tailscale | ~1 min |
+| 3 | Switch SSH to key-only, install fail2ban | ~1 min |
+| 4 | Partition NVMe (if needed), mount, 32GB swap, create directories | ~2 min |
+| 5 | Docker data directory on NVMe, NVIDIA Container Runtime | ~2 min |
+| 6 | Node.js 22, Python3, Git, Claude Code CLI, jtop | ~5 min |
+| 7 | tmux config, shell aliases, custom prompt, MOTD | ~1 min |
+| 8 | Playwright + headless Chromium for browser automation | ~3 min |
 
-**Gesamt: ~15 Minuten.** Jeder Schritt zeigt Fortschrittsmeldungen.
+**Total: ~18 minutes.** Each step shows progress messages.
 
-> **Falls ein Schritt fehlschlägt:** Logs unter `/var/log/jetson-setup/` prüfen. Einzelne Schritte können nachgeholt werden: `sudo ./setup.sh --step 4`
+> **If a step fails:** Check logs at `/var/log/jetson-setup/`. Individual steps can be re-run: `sudo ./setup.sh --step 4`
 
-**Schritt 4.5 — Neustart**
+**Step 4.5 — Reboot**
 
 ```bash
 sudo reboot
 ```
 
-Die serielle Konsole verliert die Verbindung. Der Jetson ist jetzt fertig konfiguriert — du kannst die serielle Konsole beenden und das USB-C Kabel abziehen.
-
-> **Beenden:** `screen` mit `Ctrl+A` dann `K` — `cu` mit `~.` (Tilde + Punkt).
+The serial console loses connection. The Jetson is now fully configured — you can close the serial console and unplug the USB-C cable.
 
 ---
 
-### Phase 5: SSH vom Mac einrichten
+### Phase 5: Set Up SSH from Mac
 
-> **Wann:** Setup abgeschlossen, Jetson startet neu. Ab hier wechselst du auf deinen **Mac** — den Ubuntu-Laptop brauchst du nie wieder.
+> **When:** Setup complete, Jetson is rebooting. From here you switch to your **Mac** — you never need the Ubuntu laptop again.
 
-**Schritt 5.1 — SSH-Key erstellen (falls noch keiner existiert)**
+**Step 5.1 — Create SSH Key (if none exists)**
 
 ```bash
-# Prüfen ob schon ein Key existiert
 ls ~/.ssh/id_ed25519.pub
 
-# Falls nicht: neuen Key erstellen
-ssh-keygen -t ed25519 -C "dein-name@mac"
-# Enter für Standardpfad, optionale Passphrase setzen
+# If not found: create new key
+ssh-keygen -t ed25519 -C "your-name@mac"
+# Press Enter for default path, optionally set a passphrase
 ```
 
-**Schritt 5.2 — SSH-Key auf den Jetson kopieren**
+**Step 5.2 — Copy SSH Key to the Jetson**
 
-Der Jetson muss per Ethernet im selben Netzwerk wie dein Mac sein.
+The Jetson must be on the same network as your Mac via Ethernet.
 
 ```bash
-ssh-copy-id -i ~/.ssh/id_ed25519.pub BENUTZER@IP-ADRESSE
-# IP-Adresse aus Schritt 4.2, z.B.: ssh-copy-id -i ~/.ssh/id_ed25519.pub arasul@192.168.1.42
+ssh-copy-id -i ~/.ssh/id_ed25519.pub USER@IP-ADDRESS
+# IP address from Step 4.2, e.g.: ssh-copy-id -i ~/.ssh/id_ed25519.pub arasul@192.168.1.42
 ```
 
-Du wirst nach dem **Passwort** gefragt (aus der Pre-Config in Phase 3). Danach ist der Key hinterlegt.
+You'll be asked for the **password** (from the Pre-Config in Phase 3). After that, the key is stored.
 
-> **Fehler: `Permission denied (publickey)`?**
+> **Error: `Permission denied (publickey)`?**
 >
-> Das Setup-Script hat Passwort-Login bereits deaktiviert — `ssh-copy-id` kann den Key nicht übertragen. In diesem Fall den Key **manuell über die serielle Konsole** hinterlegen:
+> The setup script has already disabled password login — `ssh-copy-id` can't transfer the key. In this case, add the key **manually via serial console**:
 >
-> 1. Public Key auf dem Mac anzeigen und kopieren:
+> 1. Display and copy public key on Mac:
 >    ```bash
 >    cat ~/.ssh/id_ed25519.pub
 >    ```
 >
-> 2. Serielle Konsole zum Jetson öffnen (Ubuntu-Laptop oder Mac):
+> 2. Open serial console to Jetson (Ubuntu laptop or Mac):
 >    ```bash
->    # Ubuntu-Laptop
+>    # Ubuntu laptop
 >    sudo screen /dev/ttyACM0 115200
 >    # macOS
 >    screen /dev/cu.usbmodem* 115200
 >    ```
 >
-> 3. Auf dem **Jetson** einloggen und Key eintragen — Befehle einzeln ausführen (serielle Konsole hat kleinen Paste-Buffer):
+> 3. Log in on the **Jetson** and add key — run commands one at a time (serial console has small paste buffer):
 >    ```bash
 >    mkdir -p ~/.ssh
 >    chmod 700 ~/.ssh
->    echo "HIER-DEN-KOPIERTEN-KEY-EINFÜGEN" >> ~/.ssh/authorized_keys
+>    echo "PASTE-YOUR-COPIED-KEY-HERE" >> ~/.ssh/authorized_keys
 >    chmod 600 ~/.ssh/authorized_keys
 >    cat ~/.ssh/authorized_keys
 >    ```
->    Der `cat`-Befehl sollte eine Zeile mit `ssh-ed25519 AAAA...` zeigen.
+>    The `cat` command should show a line starting with `ssh-ed25519 AAAA...`.
 >
-> 4. Serielle Konsole beenden (`Ctrl+A` dann `K`) und SSH vom Mac erneut testen.
+> 4. Exit serial console (`Ctrl+A` then `K`) and test SSH from Mac again.
 
-**Schritt 5.3 — SSH-Verbindung testen**
+**Step 5.3 — Test SSH Connection**
 
 ```bash
-ssh BENUTZER@IP-ADRESSE
+ssh USER@IP-ADDRESS
 ```
 
-Du solltest **ohne Passwort-Abfrage** verbunden werden.
+You should connect **without a password prompt**.
 
 ---
 
-### Phase 6: Mac SSH-Config einrichten (Komfort)
+### Phase 6: Configure Mac SSH Config (Convenience)
 
-> **Wann:** SSH-Verbindung funktioniert (Phase 5 abgeschlossen). Ab jetzt brauchst du nie wieder eine IP-Adresse eintippen.
+> **When:** SSH connection works (Phase 5 complete). From now on you never need to type an IP address again.
 
-**Schritt 6.1 — Sockets-Verzeichnis erstellen**
+**Step 6.1 — Create Sockets Directory**
 
 ```bash
 mkdir -p ~/.ssh/sockets
 ```
 
-**Schritt 6.2 — SSH-Config bearbeiten**
+**Step 6.2 — Edit SSH Config**
 
 ```bash
 nano ~/.ssh/config
 ```
 
-Füge am Ende hinzu (ersetze `BENUTZER` und `HOSTNAME`):
+Add at the end (replace `USER` and `HOSTNAME`):
 
 ```
 # --- Jetson via LAN (mDNS) ---
 Host jetson
     HostName HOSTNAME.local
-    User BENUTZER
+    User USER
     IdentityFile ~/.ssh/id_ed25519
     ControlMaster auto
     ControlPersist 600
@@ -472,206 +457,178 @@ Host jetson
     LocalForward 8080 localhost:8080
     LocalForward 8888 localhost:8888
 
-# --- Jetson via USB-C Direktverbindung ---
+# --- Jetson via USB-C Direct Connection ---
 Host jetson-usb
     HostName 192.168.55.1
-    User BENUTZER
+    User USER
     IdentityFile ~/.ssh/id_ed25519
 ```
 
-> Beispiel: Wenn `JETSON_HOSTNAME=jetson` und `JETSON_USER=arasul`, dann wird `HostName` zu `jetson.local` und `User` zu `arasul`.
+> Example: If `JETSON_HOSTNAME=jetson` and `JETSON_USER=arasul`, then `HostName` becomes `jetson.local` and `User` becomes `arasul`.
 
-**Schritt 6.3 — Verbindung testen**
+**Step 6.3 — Test Connection**
 
 ```bash
-# Über LAN (nach Neustart, mDNS muss sich propagieren ~10 Sek)
+# Via LAN (after reboot, mDNS needs ~10 seconds to propagate)
 ssh jetson
 
-# Oder über USB-C
+# Or via USB-C
 ssh jetson-usb
 ```
 
 ---
 
-### Phase 7: Alles prüfen
+### Phase 7: Verify Everything
 
-> **Wann:** Du bist per `ssh jetson` verbunden. Der Jetson hat das Setup abgeschlossen.
+> **When:** You're connected via `ssh jetson`. The Jetson has completed setup.
 
-**Schritt 7.1 — MOTD prüfen**
+**Step 7.1 — Check MOTD**
 
-Beim Login siehst du ein Custom-Banner mit System-Infos (RAM, Disk, Temperatur).
+On login you'll see a custom banner with system info (RAM, Disk, Temperature).
 
-**Schritt 7.2 — Grundfunktionen testen**
+**Step 7.2 — Test Core Functions**
 
 ```bash
-# tmux-Session starten
+# Start tmux session
 t
 
-# RAM und Swap prüfen
+# Check RAM and swap
 free -h
-# Erwartet: ~6GB RAM frei, ~32GB Swap
+# Expected: ~6GB RAM free, ~32GB swap
 
-# NVMe prüfen
+# Check NVMe
 df -h /mnt/nvme
-# Erwartet: NVMe gemountet mit viel Speicher
+# Expected: NVMe mounted with plenty of storage
 
-# Projekte-Verzeichnis
+# Projects directory
 ls ~/projects
-# Erwartet: Symlink zu /mnt/nvme/projects/
+# Expected: symlink to /mnt/nvme/projects/
 
-# Docker prüfen
+# Docker check
 docker run --rm hello-world
-# Erwartet: "Hello from Docker!"
+# Expected: "Hello from Docker!"
 
-# NVIDIA GPU in Docker prüfen
+# NVIDIA GPU in Docker
 docker run --rm --runtime=nvidia nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
-# Erwartet: GPU-Tabelle mit Orin
+# Expected: GPU table with Orin
 
 # Node.js
 node --version
-# Erwartet: v22.x.x
+# Expected: v22.x.x
 
-# Claude Code (falls installiert)
+# Claude Code (if installed)
 claude --version
 ```
 
-**Schritt 7.3 — Jetson-Monitoring**
+**Step 7.3 — Jetson Monitoring**
 
 ```bash
-# Interaktives Dashboard
+# Interactive dashboard
 jtop
 
-# Oder Einzeiler
+# Or one-liner
 sudo tegrastats
 ```
 
 ---
 
-## Täglicher Workflow
+## Daily Workflow
 
 ```bash
-# 1. Vom Mac verbinden
+# 1. Connect from Mac
 ssh jetson
 
-# 2. tmux starten (oder bestehende Session fortsetzen)
+# 2. Start tmux (or resume existing session)
 t
 
-# 3. Zum Projekt navigieren
-p                           # Alias für: cd ~/projects
-cd mein-projekt
+# 3. Navigate to project
+p                           # Alias for: cd ~/projects
+cd my-project
 
-# 4. Claude Code starten
+# 4. Start Claude Code
 claude
 
-# 5. Jetson-Status prüfen
-jtop                        # Interaktives Dashboard
+# 5. Check Jetson status
+jtop                        # Interactive dashboard
 ```
 
-## Nützliche Aliases
+## Useful Aliases
 
-| Alias | Befehl |
-|-------|--------|
-| `t` | tmux `dev` Session (erstellt oder hängt sich an) |
-| `c` | Claude Code starten |
+| Alias | Command |
+|-------|---------|
+| `t` | tmux `dev` session (creates or attaches) |
+| `c` | Start Claude Code |
 | `p` | `cd ~/projects` |
-| `jtop` | Jetson Systemmonitor |
-| `dps` | Docker Container (formatiert) |
-| `powermode` | NVPower-Mode anzeigen |
-| `atui` | Arasul Textual TUI starten |
-| `a` / `as` | `arasul status` — System-Dashboard |
-| `ah` | `arasul health` — Health-Check |
+| `jtop` | Jetson system monitor |
+| `dps` | Docker containers (formatted) |
+| `powermode` | Show NVPower mode |
+| `atui` | Start Arasul TUI |
 
-### `arasul` CLI-Tool
+### Arasul TUI
 
-Der Jetson wird mit dem `arasul` CLI-Tool ausgeliefert. Alle Systemverwaltung über einen Befehl:
+The Jetson ships with the `arasul` interactive TUI for system management, project workflows, and AI tool integration.
 
 ```bash
-arasul status                  # System-Dashboard (Default)
-arasul health                  # Vollständiger Health-Check
-arasul update                  # System-Update (Security-Patches)
-arasul logs [system|docker|ssh]  # Logs anzeigen
+# Start the TUI
+arasul
 
-arasul docker status           # Container-Übersicht
-arasul docker cleanup          # Ungenutzte Images/Volumes entfernen
-arasul docker restart <name>   # Container neustarten
-
-arasul power status            # Aktueller Power-Modus
-arasul power max               # 25W + Max Clocks
-arasul power default           # 15W Standard
-arasul power save              # 7W Energiesparmodus
-
-arasul nvme status             # NVMe-Health, SMART, Wear
-arasul nvme trim               # Manuelles TRIM
-arasul nvme smart              # Vollständige SMART-Daten
-
-arasul network                 # IP, Hostname, mDNS, Gateway, DNS
-arasul ssh status              # Sessions, gebannte IPs, Firewall
-arasul ssh unban <ip>          # IP aus fail2ban entbannen
-arasul backup create           # Konfiguration sichern
-arasul backup list             # Vorhandene Backups anzeigen
-
-arasul help                    # Alle Befehle anzeigen
-arasul version                 # Version anzeigen
+# Or install from the repo
+pip install -e .
+arasul
 ```
 
-### Arasul TUI (Textual, Preview)
+Available slash commands in the TUI:
 
-Erster TUI-Start für Slash-Commands ist jetzt als Python-Textual-App im Repo enthalten.
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all commands |
+| `/status` | System status dashboard |
+| `/create` | Create new project (interactive) |
+| `/clone` | Clone a GitHub repo (interactive) |
+| `/open <name>` | Open/activate a project |
+| `/delete` | Delete a project (interactive) |
+| `/claude` | Start Claude Code (with auth setup wizard) |
+| `/codex` | Start Codex |
+| `/git` | GitHub CLI setup wizard |
+| `/browser` | Headless browser management (status/test/install/mcp) |
+| `/exit` | Quit |
+
+Keyboard shortcuts: `1-9` select project by number, `n` new project, `d` delete, `c` Claude, `x` Codex, `b` back.
+
+## Running Individual Setup Steps
 
 ```bash
-# Im Repo
-python3 -m pip install -e .
-arasul-tui
-
-# Oder über den Installer
-chmod +x arasul_tui/install.sh
-./arasul_tui/install.sh
-arasul-shell
+sudo ./setup.sh --step 4    # NVMe setup only
+sudo ./setup.sh --step 6    # Dev tools only
+sudo ./setup.sh --step 8    # Browser setup only
 ```
 
-Wichtige Slash-Commands in der TUI:
-`/help`, `/status`, `/health`, `/network`, `/docker status`, `/provider list`,
-`/project list`, `/project create`, `/project clone`,
-`/project switch <name>`, `/project open <path>`, `/provider use claude|openai`,
-`/claude`, `/openai`, `/power off`, `/exit`, `/quit`
+## What You Get
 
-Interaktive Flows:
-- `/project create` fragt bei fehlendem Namen nach dem Projektnamen
-- `/project clone` fragt bei fehlender URL nach dem GitHub-Link
-- Projekte werden in `~/.config/arasul/projects.yaml` registriert
+```
+~/projects/         → Symlink to /mnt/nvme/projects/ (fast NVMe storage)
+/mnt/nvme/          → NVMe mount with projects/, docker/, models/, backups/
+32GB Swap on NVMe   → Enough headroom for Docker + development
+Docker + NVIDIA     → GPU containers, data on NVMe
+Node.js 22 + Claude → AI-assisted development
+tmux + Aliases      → Persistent sessions, shortcuts
+SSH hardened        → Key-only auth, fail2ban, UFW firewall
+arasul TUI          → Interactive system management via `arasul`
+Headless browser    → Playwright + Chromium for AI agent automation
+Custom MOTD         → Minimal dashboard on login
+```
 
-## Einzelne Setup-Schritte nachträglich ausführen
+## Configuration
+
+All device-specific settings are managed centrally in `.env`:
 
 ```bash
-sudo ./setup.sh --step 4    # Nur NVMe-Setup
-sudo ./setup.sh --step 6    # Nur Dev-Tools
-```
-
-## Was du am Ende hast
-
-```
-~/projects/         → Symlink zu /mnt/nvme/projects/ (schneller NVMe-Speicher)
-/mnt/nvme/          → NVMe-Mount mit projects/, docker/, models/, backups/
-32GB Swap auf NVMe  → Genug Headroom für Docker + Entwicklung
-Docker + NVIDIA     → GPU-Container, Daten auf NVMe
-Node.js 22 + Claude → AI-unterstützte Entwicklung
-tmux + Aliases      → Persistente Sessions, Shortcuts
-SSH gehärtet        → Key-Only Auth, fail2ban, UFW Firewall
-arasul CLI          → Systemverwaltung via `arasul` Kommandos
-Custom MOTD         → Minimales Dashboard beim Login
-```
-
-## Konfiguration
-
-Alle kundenspezifischen Einstellungen werden zentral in `.env` verwaltet:
-
-```bash
-# Pflichtfelder
-CUSTOMER_NAME="Firma-XY"
+# Required
+CUSTOMER_NAME="my-project"
 JETSON_USER="arasul"
 JETSON_HOSTNAME="jetson"
 
-# Optionale Einstellungen
+# Optional
 SWAP_SIZE="32G"
 INSTALL_TAILSCALE="false"
 INSTALL_CLAUDE="true"
@@ -681,173 +638,148 @@ NODE_VERSION="22"
 POWER_MODE="3"          # 0=7W, 1=15W, 3=25W
 ```
 
-Vollständige Vorlage: [`.env.example`](.env.example)
+Full template: [`.env.example`](.env.example)
 
-## Repo-Struktur
+## Repository Structure
 
 ```
-├── .env.example                # Konfigurations-Vorlage (alle Variablen)
+├── .env.example                # Configuration template (all variables)
 ├── .gitignore
-├── pyproject.toml              # Python-Paketdefinition (Arasul TUI)
-├── CLAUDE.md                   # Kontext für Claude Code
-├── README.md                   # Diese Datei
-├── SETUP-PLAN.md               # Kompakte Planungsübersicht
-├── setup.sh                    # Hauptorchestrator
+├── pyproject.toml              # Python package definition (Arasul TUI)
+├── CLAUDE.md                   # Context for Claude Code / AI agents
+├── README.md                   # This file
+├── LICENSE                     # MIT License
+├── CONTRIBUTING.md             # Contribution guidelines
+├── CHANGELOG.md                # Version history
+├── setup.sh                    # Main orchestrator
 ├── arasul_tui/
-│   ├── app.py                  # Textual TUI App (Slash-Interface)
-│   ├── commands.py             # Slash-Command Handler
-│   ├── install.sh              # Installer für `arasul-shell`
-│   ├── core/                   # Router, State, Session-Lock, Registry, GitOps
-│   └── providers/              # Provider-Layer (Claude + Codex)
+│   ├── app.py                  # TUI application (slash-command interface)
+│   ├── commands.py             # Slash-command handlers
+│   ├── install.sh              # Installer for `arasul` launcher
+│   └── core/                   # Router, State, Registry, Auth, Browser, UI
+├── tests/                      # Pytest test suite
 ├── scripts/
-│   ├── 01-system-optimize.sh   # GUI deaktivieren, Services minimieren, Kernel tunen
+│   ├── 01-system-optimize.sh   # Disable GUI, minimize services, tune kernel
 │   ├── 02-network-setup.sh     # Hostname, mDNS (Avahi), optional Tailscale
-│   ├── 03-ssh-harden.sh        # Key-Only Auth, fail2ban, SSH-Härtung
-│   ├── 04-nvme-setup.sh        # NVMe partitionieren, mounten, Swap, Verzeichnisse
-│   ├── 05-docker-setup.sh      # Docker + NVIDIA Runtime, Daten auf NVMe
+│   ├── 03-ssh-harden.sh        # Key-only auth, fail2ban, SSH hardening
+│   ├── 04-nvme-setup.sh        # Partition NVMe, mount, swap, directories
+│   ├── 05-docker-setup.sh      # Docker + NVIDIA Runtime, data on NVMe
 │   ├── 06-devtools-setup.sh    # Node.js, Python, Git, Claude Code, jtop
-│   └── 07-quality-of-life.sh   # tmux, Aliases, MOTD, Power-Mode
+│   ├── 07-quality-of-life.sh   # tmux, aliases, MOTD, power mode
+│   └── 08-browser-setup.sh     # Playwright + headless Chromium
 ├── config/
-│   ├── daemon.json.template    # Docker-Daemon Vorlage
-│   ├── tmux.conf               # tmux-Konfiguration
-│   ├── bash_aliases            # Shell-Aliases
-│   └── mac-ssh-config          # SSH-Config-Template für Mac
+│   ├── daemon.json.template    # Docker daemon template
+│   ├── tmux.conf               # tmux configuration
+│   ├── bash_aliases            # Shell aliases
+│   └── mac-ssh-config          # SSH config template for Mac
 └── agents/
-    └── README.md               # Claude Code Agent-Patterns
+    └── README.md               # Claude Code agent patterns
 ```
 
-## Sicherheits- und Performance-Optimierungen
+## Security & Performance
 
-Das Setup implementiert folgende Härtungs- und Optimierungsmaßnahmen:
+### Security
 
-### Sicherheit
+| Measure | Details |
+|---------|---------|
+| **SSH Key-Only Auth** | Password login disabled, Ed25519 public key only |
+| **fail2ban** | 3 failed attempts → 1h ban, repeat offenders → 1 week ban (recidive) |
+| **UFW Firewall** | Deny incoming (only SSH + mDNS allowed), allow outgoing |
+| **Auto Security Updates** | Ubuntu `-security` patches, Docker/NVIDIA excluded |
+| **Network Hardening** | SYN cookies, reverse-path filter, no redirects |
 
-| Maßnahme | Details |
-|----------|---------|
-| **SSH Key-Only Auth** | Passwort-Login deaktiviert, nur Ed25519 Public-Key |
-| **fail2ban** | 3 Fehlversuche → 1h Ban, Wiederholungstäter → 1 Woche Ban (recidive) |
-| **UFW Firewall** | Deny incoming (nur SSH + mDNS erlaubt), Allow outgoing |
-| **Automatische Sicherheitsupdates** | Ubuntu `-security` Patches, Docker/NVIDIA ausgenommen |
-| **Netzwerk-Hardening** | SYN-Cookies, Reverse-Path-Filter, keine Redirects |
+### Performance & Stability
 
-### Performance & Stabilität
-
-| Maßnahme | Details |
-|----------|---------|
-| **Kernel-Tuning** | `vm.swappiness=10`, `vfs_cache_pressure=50`, `dirty_ratio=10`, 64MB `min_free_kbytes` |
-| **OOM-Schutz** | SSH-Daemon und Docker vor OOM-Killer geschützt (`OOMScoreAdjust`) |
-| **NVMe-Optimierung** | `noatime`-Mount, `none` I/O-Scheduler, wöchentlich TRIM (`fstrim.timer`) |
-| **Journald-Limit** | Max 200MB Logs, 1 Woche Retention, komprimiert |
-| **Service-Minimierung** | ~39 laufende Services (Desktop, Print, WiFi, PackageKit etc. deaktiviert) |
-| **Automatische Wartung** | Wöchentliche NVMe-Health-Checks und Docker-Cleanup per Cron |
-
-## Für neue Kunden-Geräte
-
-Kurzfassung für erfahrene Nutzer — jeder Schritt ist oben im Detail erklärt:
-
-```bash
-# === AM FLASH-RECHNER (Ubuntu-Laptop oder Mac) ===
-# 1. SSD einbauen, Recovery-Modus (Büroklammer auf Pins 9+10 an J14), JetPack auf NVMe flashen (Phase 1–3)
-
-# 2. Über serielle Konsole: Setup komplett ausführen (Phase 4)
-sudo screen /dev/ttyACM0 115200
-# Login → dann:
-git clone https://github.com/koljaschoepe/jetson-dev-setup.git
-cd jetson-dev-setup
-sudo ./setup.sh --interactive
-sudo reboot
-
-# === AM MAC ===
-# 3. SSH-Key kopieren (Phase 5)
-ssh-copy-id -i ~/.ssh/id_ed25519.pub BENUTZER@IP-ADRESSE
-
-# 4. Mac SSH-Config einrichten (Phase 6)
-# 5. SSH-Config an Kunden übergeben
-cat config/mac-ssh-config
-```
+| Measure | Details |
+|---------|---------|
+| **Kernel Tuning** | `vm.swappiness=10`, `vfs_cache_pressure=50`, `dirty_ratio=10`, 64MB `min_free_kbytes` |
+| **OOM Protection** | SSH daemon and Docker protected from OOM killer (`OOMScoreAdjust`) |
+| **NVMe Optimization** | `noatime` mount, `none` I/O scheduler, weekly TRIM (`fstrim.timer`) |
+| **Journald Limit** | Max 200MB logs, 1 week retention, compressed |
+| **Service Minimization** | ~39 running services (desktop, print, WiFi, PackageKit etc. disabled) |
+| **Automated Maintenance** | Weekly NVMe health checks and Docker cleanup via cron |
 
 ## Troubleshooting
 
-### Flash-Probleme
+### Flash Issues
 
-| Problem | Lösung |
-|---------|--------|
-| SDK Manager erkennt Jetson nicht | USB-C Kabel prüfen (Daten, nicht nur Laden). Anderen USB-Port direkt am Mainboard probieren. `lsusb \| grep -i nvidia` muss NVIDIA zeigen. |
-| NVMe nicht als Flash-Ziel wählbar | SSD physisch korrekt eingebaut? PCIe, nicht SATA-SSD! "Manual Setup" im SDK Manager wählen. |
-| Flash bricht ab | Netzwerkverbindung stabil? Genug Speicher auf Host (~30GB frei)? Nochmal versuchen. |
-| oem-config erscheint nicht | 60 Sekunden warten. `Enter` drücken. Serielles Gerät korrekt? `ls /dev/ttyACM*` auf dem Ubuntu-Laptop. |
+| Problem | Solution |
+|---------|----------|
+| SDK Manager doesn't detect Jetson | Check USB-C cable (data, not charge-only). Try different USB port directly on mainboard. `lsusb \| grep -i nvidia` must show NVIDIA. |
+| NVMe not available as flash target | SSD physically installed correctly? Must be PCIe, not SATA SSD! Select "Manual Setup" in SDK Manager. |
+| Flash aborts | Stable network? Enough storage on host (~30GB free)? Try again. |
 
-### Boot-Probleme
+### Boot Issues
 
-| Problem | Lösung |
-|---------|--------|
-| Kein Video-Ausgang nach Setup | Normal — Headless-Modus. Serielle Konsole oder SSH nutzen. |
-| Boot hängt | NVMe SSD Kontakt prüfen. Serielle Konsole für Boot-Logs anschließen. |
-| Boot von SD statt NVMe | Recovery-Modus via Button Header Pins 9+10 (siehe Phase 2), nochmal auf NVMe flashen. SD-Karte entfernen. |
+| Problem | Solution |
+|---------|----------|
+| No video output after setup | Normal — headless mode. Use serial console or SSH. |
+| Boot hangs | Check NVMe SSD contact. Connect serial console for boot logs. |
+| Boots from SD instead of NVMe | Recovery Mode via Button Header Pins 9+10 (see Phase 2), flash to NVMe again. Remove SD card. |
 
-### SSH-Probleme
+### SSH Issues
 
-| Problem | Lösung |
-|---------|--------|
-| Connection refused | SSH-Dienst läuft? Via serieller Konsole prüfen: `systemctl status sshd` |
-| Permission denied (publickey) | Key nicht hinterlegt. Manuell über serielle Konsole eintragen (siehe Phase 5, Troubleshooting-Box). |
-| Ausgesperrt nach SSH-Härtung | USB-C vom Ubuntu-Laptop anschließen, serielle Konsole öffnen (`sudo screen /dev/ttyACM0 115200`), SSH-Config reparieren. |
-| Firewall blockiert Verbindung | `sudo ufw status` prüfen. Port 22 muss erlaubt sein: `sudo ufw allow ssh` |
-| `.local` Hostname geht nicht | mDNS/Avahi auf dem Jetson: `systemctl status avahi-daemon`. Auf dem Mac: Neustart des mDNS: `sudo killall -HUP mDNSResponder` |
+| Problem | Solution |
+|---------|----------|
+| Connection refused | SSH service running? Check via serial console: `systemctl status sshd` |
+| Permission denied (publickey) | Key not stored. Add manually via serial console (see Phase 5 troubleshooting box). |
+| Locked out after SSH hardening | Connect USB-C from Ubuntu laptop, open serial console (`sudo screen /dev/ttyACM0 115200`), fix SSH config. |
+| Firewall blocks connection | `sudo ufw status` to check. Port 22 must be allowed: `sudo ufw allow ssh` |
+| `.local` hostname not working | mDNS/Avahi on Jetson: `systemctl status avahi-daemon`. On Mac: restart mDNS: `sudo killall -HUP mDNSResponder` |
 
-### NVMe-Probleme
+### NVMe Issues
 
-| Problem | Lösung |
-|---------|--------|
-| SSD nicht erkannt (`lsblk`) | Richtig eingebaut? Muss PCIe NVMe sein, kein SATA M.2! |
-| Langsame Performance | `sudo nvme smart-log /dev/nvme0n1` für Health-Check. Thermal Throttling? `jtop` prüfen. |
+| Problem | Solution |
+|---------|----------|
+| SSD not detected (`lsblk`) | Properly installed? Must be PCIe NVMe, not SATA M.2! |
+| Slow performance | `sudo nvme smart-log /dev/nvme0n1` for health check. Thermal throttling? Check `jtop`. |
 
-### Docker-Probleme
+### Docker Issues
 
-| Problem | Lösung |
-|---------|--------|
-| Daemon startet nicht | `journalctl -u docker` prüfen. `daemon.json` Syntax korrekt? |
-| GPU nicht verfügbar im Container | `nvidia-container-toolkit` installiert? `--runtime=nvidia` Flag gesetzt? |
-| Kein Speicher | `docker system prune -af --volumes` zum Aufräumen. |
+| Problem | Solution |
+|---------|----------|
+| Daemon won't start | Check `journalctl -u docker`. `daemon.json` syntax correct? |
+| GPU not available in container | `nvidia-container-toolkit` installed? `--runtime=nvidia` flag set? |
+| Out of storage | `docker system prune -af --volumes` to clean up. |
 
-### RAM-Probleme
+### RAM Issues
 
-| Problem | Lösung |
-|---------|--------|
-| OOM (Out of Memory) | `free -h` prüfen. Container mit Memory-Limits starten (`--memory=2g`). SSH und Docker sind OOM-geschützt. |
-| Nur 4–5GB frei bei 8GB | Normal — GPU reserviert 1–2GB vom geteilten RAM. |
-| Prozess wird unerwartet beendet | OOM-Killer aktiv? `dmesg \| grep -i oom` prüfen. SSH/Docker bleiben geschützt. |
+| Problem | Solution |
+|---------|----------|
+| OOM (Out of Memory) | Check `free -h`. Start containers with memory limits (`--memory=2g`). SSH and Docker are OOM-protected. |
+| Only 4–5GB free with 8GB | Normal — GPU reserves 1–2GB from shared RAM. |
+| Process killed unexpectedly | OOM killer active? Check `dmesg \| grep -i oom`. SSH/Docker stay protected. |
 
-## Wartung
+## Maintenance
 
-Vieles läuft automatisch (Sicherheitsupdates, Docker-Cleanup, NVMe-Health-Checks, TRIM). Für manuelle Wartung:
+Most maintenance runs automatically (security updates, Docker cleanup, NVMe health checks, TRIM). For manual maintenance:
 
 ```bash
-# System-Updates (automatische Security-Patches laufen bereits)
+# System updates (automatic security patches already running)
 sudo apt update && sudo apt upgrade -y
 
-# Docker aufräumen (läuft auch wöchentlich per Cron)
+# Docker cleanup (also runs weekly via cron)
 docker system prune -af --volumes
 
-# NVMe-Health prüfen (läuft auch wöchentlich, Log: /var/log/jetson-setup/nvme-health.log)
+# NVMe health check (also runs weekly, log: /var/log/jetson-setup/nvme-health.log)
 sudo nvme smart-log /dev/nvme0n1
 
-# Logs aufräumen (Journald ist auf 200MB limitiert)
+# Clean up logs (journald is limited to 200MB)
 sudo journalctl --vacuum-time=7d
 
-# Swap prüfen
+# Check swap
 swapon --show
 
-# Firewall-Status
+# Firewall status
 sudo ufw status verbose
 
-# fail2ban-Status (gebannte IPs)
+# fail2ban status (banned IPs)
 sudo fail2ban-client status sshd
 
-# Laufende Services zählen
+# Count running services
 systemctl list-units --type=service --state=running --no-pager | wc -l
 ```
 
-## Lizenz
+## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
