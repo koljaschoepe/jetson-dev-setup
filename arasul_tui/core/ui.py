@@ -163,7 +163,9 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
         right.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
     if not projects:
         right.append(" [dim]Keine Projekte[/dim]")
+    right.append("")
     right.append(f" [cyan]\\[n][/cyan]  Neues Projekt")
+    right.append(f" [cyan]\\[d][/cyan]  Projekt loeschen")
     right.append("")
     right.append("[bold]Quick Start[/bold]")
     right.append(" [dim]/open <name>[/dim]  Projekt oeffnen")
@@ -174,7 +176,8 @@ def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
     right_w = content_w - 3 - left_w
 
     max_h = max(len(left), len(right))
-    left += [""] * (max_h - len(left))
+    top_pad = (max_h - len(left)) // 2
+    left = [""] * top_pad + left + [""] * (max_h - len(left) - top_pad)
     right += [""] * (max_h - len(right))
 
     return [
@@ -201,7 +204,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
         return
 
     w = _adaptive_width()
-    content_w = w - 6
+    content_w = w - 8
     bar = "═" * (w - 6)
     sep = "─" * content_w
 
@@ -209,7 +212,6 @@ def print_header(state: TuiState, full: bool = True) -> None:
     info_lines = _build_info_lines(state, content_w)
 
     frame: list[str] = []
-    empty = " " * content_w
 
     frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
     frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
@@ -219,12 +221,12 @@ def print_header(state: TuiState, full: bool = True) -> None:
         left_pad = (content_w - logo_w) // 2
         padded = " " * left_pad + line.ljust(logo_w)
         padded = padded.ljust(content_w)
-        frame.append(f"[cyan]║[/cyan]  [bold cyan]{padded}[/bold cyan]  [cyan]║[/cyan]")
+        frame.append(f"[cyan]║[/cyan]   [bold cyan]{padded}[/bold cyan]   [cyan]║[/cyan]")
 
-    frame.append(f"[cyan]║[/cyan]  [dim]{sep}[/dim]  [cyan]║[/cyan]")
+    frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
 
     for line in info_lines:
-        frame.append(f"[cyan]║[/cyan]  {_pad_right(line, content_w)}  [cyan]║[/cyan]")
+        frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
 
     frame.append(f"[cyan]║ ╔{bar}╗ ║[/cyan]")
     frame.append(f"[cyan]╚═╩{bar}╩═╝[/cyan]")
