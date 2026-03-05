@@ -293,13 +293,10 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     return lines
 
 
-def _pick_logo(content_w: int) -> list[str] | None:
-    """Pick the largest logo that fits, or None if none fit."""
-    for logo in (LOGO_LARGE, LOGO_COMPACT):
-        cell_w = max(_vis_len(ln) for ln in logo)
-        if cell_w <= content_w:
-            return list(logo)
-    return None
+def _sep_width() -> int:
+    """Separator width: fits terminal without wrapping."""
+    pad_w = _frame_left_pad() + 3
+    return max(20, min(console.width - pad_w - 2, MAX_WIDTH - 6))
 
 
 def _print_header_full(state: TuiState) -> None:
@@ -307,21 +304,20 @@ def _print_header_full(state: TuiState) -> None:
     w = _adaptive_width()
     content_w = w - 6
     pad = content_pad()
-    sep = f"[dim]{'─' * content_w}[/dim]"
+    sep_w = _sep_width()
+    sep = f"[dim]{'─' * sep_w}[/dim]"
+
+    logo_lines = list(LOGO_LARGE)
+    logo_w = max(len(ln) for ln in logo_lines)
 
     console.print()
 
-    logo_lines = _pick_logo(content_w)
-    if logo_lines:
-        logo_cell_w = max(_vis_len(ln) for ln in logo_lines)
-        for i, line in enumerate(logo_lines):
-            left_pad = max(0, (content_w - logo_cell_w) // 2)
-            padded = " " * left_pad + line
-            color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
-            console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
-    else:
-        # No logo fits — text fallback
-        console.print(f"{pad}[bold cyan]ARASUL[/bold cyan]", highlight=False)
+    # Logo with blue gradient
+    for i, line in enumerate(logo_lines):
+        left_pad = max(0, (content_w - logo_w) // 2)
+        padded = " " * left_pad + line
+        color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
+        console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
 
     console.print(f"{pad}{sep}", highlight=False)
 
@@ -335,7 +331,7 @@ def _print_header_medium(state: TuiState) -> None:
     """Medium header: same content as full, but text title instead of ASCII logo."""
     content_w = min(console.width - 6, MAX_WIDTH - 6)
     pad = content_pad()
-    sep = f"[dim]{'─' * content_w}[/dim]"
+    sep = f"[dim]{'─' * _sep_width()}[/dim]"
 
     console.print()
     console.print(f"{pad}[bold cyan]ARASUL[/bold cyan]", highlight=False)
@@ -457,8 +453,7 @@ def _print_project_full(state: TuiState) -> None:
     git = get_git_info(project)
 
     pad = content_pad()
-    w = _adaptive_width() - 6
-    sep = f"[dim]{'─' * w}[/dim]"
+    sep = f"[dim]{'─' * _sep_width()}[/dim]"
 
     console.print()
     console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
@@ -484,8 +479,7 @@ def _print_project_medium(state: TuiState) -> None:
     git = get_git_info(project)
 
     pad = content_pad()
-    w = min(console.width - 6, 56)
-    sep = f"[dim]{'─' * w}[/dim]"
+    sep = f"[dim]{'─' * _sep_width()}[/dim]"
 
     console.print()
     console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
@@ -706,9 +700,8 @@ def content_pad() -> str:
 
 def print_separator() -> None:
     """Print a thin separator line."""
-    w = min(console.width - 4, MAX_WIDTH)
     pad = " " * _frame_left_pad()
-    console.print(f"{pad}[dim]{'─' * w}[/dim]", highlight=False)
+    console.print(f"{pad}[dim]{'─' * _sep_width()}[/dim]", highlight=False)
 
 
 def build_prompt(state: TuiState, wizard_step: tuple[int, int, str] | None = None) -> str:
