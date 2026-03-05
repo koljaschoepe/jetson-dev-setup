@@ -57,6 +57,13 @@ LOGO_LARGE = [
     "██  ██ ██  ██ ██  ██  ████   ████  ██████",
 ]
 
+LOGO_COMPACT = [
+    " ██  ███   ██  ███  █  █ █",
+    "█  █ █  █ █  █ █    █  █ █",
+    "████ ███  ████  ██  █  █ █",
+    "█  █ █ █  █  █ ███   ██  ████",
+]
+
 
 def _github_status() -> str:
     auth = cached_cmd("gh auth status 2>&1", timeout=4, ttl=120)
@@ -218,20 +225,23 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     info = _system_info()
     lines: list[str] = []
 
-    # --- Status line (version · power · ip · GitHub) ---
-    status_parts: list[str] = [f"[dim]{VERSION}[/dim]"]
+    # --- Status (split into two lines for narrow terminals) ---
+    line1_parts: list[str] = [f"[dim]{VERSION}[/dim]"]
     power = info.get("power", "")
     if power:
-        status_parts.append(f"[dim]{power}[/dim]")
+        line1_parts.append(f"[dim]{power}[/dim]")
     ip = info.get("ip", "")
     if ip and ip != "n/a":
-        status_parts.append(f"[dim]{ip}[/dim]")
+        line1_parts.append(f"[dim]{ip}[/dim]")
+    lines.append("  " + "  [dim]·[/dim]  ".join(line1_parts))
+
+    line2_parts: list[str] = []
     docker = info.get("docker", "0")
     if docker and docker != "0":
-        status_parts.append(f"[dim]Docker: {docker}[/dim]")
+        line2_parts.append(f"[dim]Docker: {docker}[/dim]")
     gh = _github_status()
-    status_parts.append(f"GitHub: {gh}")
-    lines.append("  " + "  [dim]·[/dim]  ".join(status_parts))
+    line2_parts.append(f"GitHub: {gh}")
+    lines.append("  " + "  [dim]·[/dim]  ".join(line2_parts))
     lines.append("")
 
     # --- System metrics with data bars ---
@@ -283,6 +293,15 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     return lines
 
 
+def _pick_logo(content_w: int) -> list[str] | None:
+    """Pick the largest logo that fits, or None if none fit."""
+    for logo in (LOGO_LARGE, LOGO_COMPACT):
+        cell_w = max(_vis_len(ln) for ln in logo)
+        if cell_w <= content_w:
+            return list(logo)
+    return None
+
+
 def _print_header_full(state: TuiState) -> None:
     """Full dashboard: frameless layout with gradient logo."""
     w = _adaptive_width()
@@ -290,22 +309,22 @@ def _print_header_full(state: TuiState) -> None:
     pad = content_pad()
     sep = f"[dim]{'─' * content_w}[/dim]"
 
-    logo_lines = list(LOGO_LARGE)
-    logo_w = max(len(ln) for ln in logo_lines)
-
     console.print()
 
-    # Logo with blue gradient
-    for i, line in enumerate(logo_lines):
-        left_pad = (content_w - logo_w) // 2
-        padded = " " * left_pad + line
-        color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
-        console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
+    logo_lines = _pick_logo(content_w)
+    if logo_lines:
+        logo_cell_w = max(_vis_len(ln) for ln in logo_lines)
+        for i, line in enumerate(logo_lines):
+            left_pad = max(0, (content_w - logo_cell_w) // 2)
+            padded = " " * left_pad + line
+            color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
+            console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
+    else:
+        # No logo fits — text fallback
+        console.print(f"{pad}[bold cyan]ARASUL[/bold cyan]", highlight=False)
 
-    # Separator
     console.print(f"{pad}{sep}", highlight=False)
 
-    # Dashboard content (status + metrics + projects)
     dashboard = _build_full_dashboard(state, content_w)
     for line in dashboard:
         console.print(f"{pad}{line}", highlight=False)
