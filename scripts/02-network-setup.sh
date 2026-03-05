@@ -42,10 +42,10 @@ fi
 if ! ufw status | grep -q "active"; then
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow ssh
+    ufw limit ssh comment 'SSH rate-limited'
     ufw allow 5353/udp comment 'mDNS'
     ufw --force enable
-    log "UFW firewall enabled (SSH + mDNS only)"
+    log "UFW firewall enabled (SSH rate-limited + mDNS only)"
 else
     skip "UFW already active"
 fi

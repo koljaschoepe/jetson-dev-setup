@@ -118,6 +118,11 @@ net.ipv4.conf.all.accept_redirects=0
 net.ipv4.conf.default.accept_redirects=0
 net.ipv4.conf.all.send_redirects=0
 net.ipv4.conf.default.send_redirects=0
+
+# Process and kernel hardening
+kernel.yama.ptrace_scope=2
+kernel.kptr_restrict=2
+kernel.dmesg_restrict=1
 EOF
     sysctl -p "$SYSCTL_FILE"
     log "Kernel parameters optimized"

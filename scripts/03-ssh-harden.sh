@@ -40,12 +40,18 @@ KbdInteractiveAuthentication no
 UsePAM no
 X11Forwarding no
 MaxAuthTries 3
-LoginGraceTime 30
+LoginGraceTime 20
 ClientAliveInterval 300
 ClientAliveCountMax 3
-AllowAgentForwarding yes
+AllowAgentForwarding no
 AllowTcpForwarding yes
-PrintLastLog no
+PrintLastLog yes
+
+# Strong crypto only
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512
+HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
 EOF
 
     if sshd -t 2>/dev/null; then
