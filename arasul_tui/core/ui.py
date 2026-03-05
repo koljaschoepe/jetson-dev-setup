@@ -37,14 +37,24 @@ MIN_WIDTH = 50
 TIER_FULL = 80
 TIER_MEDIUM = 60
 
+_LOGO_COLORS = [
+    "#00d4ff",
+    "#10c0ff",
+    "#20acff",
+    "#3098ff",
+    "#4088ff",
+    "#4c7cff",
+    "#5870ff",
+]
+
 LOGO_LARGE = [
-    " ####  #####   ####   ####  ##  ## ##",
-    "##  ## ##  ## ##  ## ##  ## ##  ## ##",
-    "##  ## ##  ## ##  ## ##     ##  ## ##",
-    "###### #####  ######  ####  ##  ## ##",
-    "##  ## ## ##  ##  ##     ## ##  ## ##",
-    "##  ## ##  ## ##  ## ##  ## ##  ## ##",
-    "##  ## ##  ## ##  ##  ####   ####  ######",
+    " ████  █████   ████   ████  ██  ██ ██",
+    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
+    "██  ██ ██  ██ ██  ██ ██     ██  ██ ██",
+    "██████ █████  ██████  ████  ██  ██ ██",
+    "██  ██ ██ ██  ██  ██     ██ ██  ██ ██",
+    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
+    "██  ██ ██  ██ ██  ██  ████   ████  ██████",
 ]
 
 
@@ -57,8 +67,8 @@ def _github_status() -> str:
             parts = line.strip().split()
             for i, p in enumerate(parts):
                 if p == "account" and i + 1 < len(parts):
-                    return f"[green]✓[/green] {parts[i + 1]}"
-    return "[green]✓[/green]"
+                    return f"[cyan]✓[/cyan] {parts[i + 1]}"
+    return "[cyan]✓[/cyan]"
 
 
 def get_default_interface() -> str:
@@ -197,7 +207,7 @@ def _bar(pct: float, width: int = 10) -> str:
     elif pct >= 70:
         color = "yellow"
     else:
-        color = "green"
+        color = "cyan"
     bar_filled = f"[{color}]{'━' * filled}[/{color}]"
     bar_empty = f"[dim]{'─' * empty}[/dim]"
     return f"[dim][[/dim]{bar_filled}{bar_empty}[dim]][/dim]"
@@ -261,7 +271,7 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
             if is_dirty:
                 parts.append(f"{branch_str} [yellow]*[/yellow]")
             else:
-                parts.append(f"{branch_str} [green]✓[/green]")
+                parts.append(f"{branch_str} [cyan]✓[/cyan]")
         if commit_time:
             parts.append(f"[dim]{commit_time}[/dim]")
         detail = "  ".join(parts) if parts else "[dim]local[/dim]"
@@ -277,66 +287,59 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
 
 
 def _print_header_full(state: TuiState) -> None:
-    """Full dashboard: rounded frame with data bars and project list."""
+    """Full dashboard: frameless layout with gradient logo."""
     w = _adaptive_width()
-    content_w = w - 6
-    bar = "─" * (w - 2)
+    pad = content_pad()
+    sep = f"[dim]{'─' * (w - 6)}[/dim]"
 
     logo_lines = list(LOGO_LARGE)
     logo_w = max(len(ln) for ln in logo_lines)
-    dashboard = _build_dashboard(state, content_w)
 
-    frame: list[str] = []
-    frame.append(f"[dim]╭{bar}╮[/dim]")
+    console.print()
 
-    # Logo in uniform cyan
-    for line in logo_lines:
-        left_pad = (content_w - logo_w) // 2
-        padded = " " * left_pad + line.ljust(logo_w)
-        padded = padded.ljust(content_w)
-        frame.append(f"[dim]│[/dim]  [bold cyan]{padded}[/bold cyan]  [dim]│[/dim]")
+    # Logo with blue gradient
+    for i, line in enumerate(logo_lines):
+        left_pad = (w - 6 - logo_w) // 2
+        padded = " " * left_pad + line
+        color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
+        console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
+
     # Version right-aligned
-    ver_line = _pad_right(f"{'':>{content_w - len(VERSION)}}{VERSION}", content_w)
-    frame.append(f"[dim]│[/dim]  [dim]{ver_line}[/dim]  [dim]│[/dim]")
+    ver_space = w - 6 - len(VERSION)
+    console.print(f"{pad}[dim]{' ' * ver_space}{VERSION}[/dim]", highlight=False)
 
-    frame.append(f"[dim]│[/dim]  [dim]{'─' * content_w}[/dim]  [dim]│[/dim]")
+    # Separator
+    console.print(f"{pad}{sep}", highlight=False)
 
     # Dashboard content
+    dashboard = _build_dashboard(state, w - 6)
     for line in dashboard:
-        frame.append(f"[dim]│[/dim]  {_pad_right(line, content_w)}  [dim]│[/dim]")
-
-    frame.append(f"[dim]╰{bar}╯[/dim]")
-
-    pad = " " * _frame_left_pad()
-    console.print()
-    for line in frame:
         console.print(f"{pad}{line}", highlight=False)
     console.print()
 
 
 def _print_header_medium(state: TuiState) -> None:
-    """Medium header: compact dashboard, no logo."""
-    w = min(console.width - 2, 60)
-    pad = " " * _frame_left_pad()
-    sep = "─" * w
+    """Medium header: frameless, compact dashboard, no logo."""
+    pad = content_pad()
+    w = min(console.width - 6, 56)
+    sep = f"[dim]{'─' * w}[/dim]"
 
     console.print()
-    console.print(f"{pad}[dim]╭{sep}╮[/dim]", highlight=False)
-    title = _pad_right(f"  [bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", w)
-    console.print(f"{pad}[dim]│[/dim]{title}[dim]│[/dim]", highlight=False)
-    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
+    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", highlight=False)
+    console.print(f"{pad}{sep}", highlight=False)
+    console.print()
 
     info = _system_info()
     bar_w = 8
     ram_pct = float(info.get("ram_pct", 0))
     disk_pct = float(info.get("disk_pct", 0))
-    line1 = _pad_right(f"  RAM {_bar(ram_pct, bar_w)} [dim]{info['ram']}[/dim]", w)
-    line2 = _pad_right(f"  Disk {_bar(disk_pct, bar_w)} [dim]{info['disk']}[/dim]", w)
-    console.print(f"{pad}[dim]│[/dim]{line1}[dim]│[/dim]", highlight=False)
-    console.print(f"{pad}[dim]│[/dim]{line2}[dim]│[/dim]", highlight=False)
+    console.print(f"{pad}  RAM {_bar(ram_pct, bar_w)} [dim]{info['ram']}[/dim]", highlight=False)
+    console.print(f"{pad}  Disk {_bar(disk_pct, bar_w)} [dim]{info['disk']}[/dim]", highlight=False)
+    console.print()
+    console.print()
 
-    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
-
+    console.print(f"{pad}  [bold]Projects[/bold]", highlight=False)
+    console.print()
     projects = project_list()
     for i, name in enumerate(projects, 1):
         branch, commit_time, is_dirty = _project_detail(name)
@@ -349,13 +352,9 @@ def _print_header_medium(state: TuiState) -> None:
         if commit_time:
             detail_parts.append(f"[dim]{commit_time}[/dim]")
         detail = "  ".join(detail_parts) if detail_parts else "[dim]local[/dim]"
-        pline = _pad_right(f"  [cyan]{i}[/cyan]  {name}  {detail}", w)
-        console.print(f"{pad}[dim]│[/dim]{pline}[dim]│[/dim]", highlight=False)
+        console.print(f"{pad}  [cyan]{i}[/cyan]  {name}  {detail}", highlight=False)
     if not projects:
-        pline = _pad_right("  [dim]No projects yet[/dim]", w)
-        console.print(f"{pad}[dim]│[/dim]{pline}[dim]│[/dim]", highlight=False)
-
-    console.print(f"{pad}[dim]╰{sep}╯[/dim]", highlight=False)
+        console.print(f"{pad}  [dim]No projects yet[/dim]", highlight=False)
     console.print()
 
 
@@ -438,7 +437,7 @@ def _project_info_rows(project: Path, git: Any) -> list[tuple[str, str]]:
         if git.is_dirty:
             branch_str += " [yellow]*[/yellow]"
         rows.append(("Branch", branch_str))
-        rows.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[green]clean[/green]"))
+        rows.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[cyan]clean[/cyan]"))
         if git.short_hash:
             msg = git.commit_message[:35] if git.commit_message else ""
             rows.append(("Commit", f"{git.short_hash} {msg}"))
@@ -461,65 +460,56 @@ def _project_info_rows(project: Path, git: Any) -> list[tuple[str, str]]:
 
 
 def _print_project_full(state: TuiState) -> None:
-    """Full project screen: rounded frame with project info."""
+    """Full project screen: frameless with project info."""
     from arasul_tui.core.git_info import get_git_info
 
     project = state.active_project
     name = project.name
     git = get_git_info(project)
 
-    w = _adaptive_width()
-    content_w = w - 6
-    bar = "─" * (w - 2)
+    pad = content_pad()
+    w = _adaptive_width() - 6
+    sep = f"[dim]{'─' * w}[/dim]"
 
-    frame: list[str] = []
-    frame.append(f"[dim]╭{bar}╮[/dim]")
-    frame.append(f"[dim]│[/dim]  [bold]{_pad_right(name, content_w)}[/bold]  [dim]│[/dim]")
-    frame.append(f"[dim]├{'─' * (w - 2)}┤[/dim]")
+    console.print()
+    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
+    console.print(f"{pad}{sep}", highlight=False)
+    console.print()
 
     for k, v in _project_info_rows(project, git):
-        line = f"  [bold]{k:<8}[/bold] {v}" if k else ""
-        frame.append(f"[dim]│[/dim]  {_pad_right(line, content_w)}  [dim]│[/dim]")
+        if k:
+            console.print(f"{pad}  [bold]{k:<8}[/bold] {v}", highlight=False)
 
-    frame.append(f"[dim]├{'─' * (w - 2)}┤[/dim]")
-
-    shortcuts = "  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back"
-    frame.append(f"[dim]│[/dim]  {_pad_right(shortcuts, content_w)}  [dim]│[/dim]")
-    frame.append(f"[dim]╰{bar}╯[/dim]")
-
-    pad = " " * _frame_left_pad()
     console.print()
-    for line in frame:
-        console.print(f"{pad}{line}", highlight=False)
+    console.print(f"{pad}{sep}", highlight=False)
+    console.print(f"{pad}  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
     console.print()
 
 
 def _print_project_medium(state: TuiState) -> None:
-    """Medium project screen: rounded frame, compact."""
+    """Medium project screen: frameless, compact."""
     from arasul_tui.core.git_info import get_git_info
 
     project = state.active_project
     name = project.name
     git = get_git_info(project)
 
-    w = min(console.width - 2, 60)
-    pad = " " * _frame_left_pad()
-    sep = "─" * w
+    pad = content_pad()
+    w = min(console.width - 6, 56)
+    sep = f"[dim]{'─' * w}[/dim]"
 
     console.print()
-    console.print(f"{pad}[dim]╭{sep}╮[/dim]", highlight=False)
-    console.print(f"{pad}[dim]│[/dim] [bold]{_pad_right(name, w - 1)}[/bold][dim]│[/dim]", highlight=False)
-    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
+    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
+    console.print(f"{pad}{sep}", highlight=False)
+    console.print()
 
     for k, v in _project_info_rows(project, git):
         if k:
-            line = _pad_right(f" [bold]{k}[/bold]  {v}", w)
-            console.print(f"{pad}[dim]│[/dim]{line}[dim]│[/dim]", highlight=False)
+            console.print(f"{pad}  [bold]{k}[/bold]  {v}", highlight=False)
 
-    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
-    sc = _pad_right(" [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", w)
-    console.print(f"{pad}[dim]│[/dim]{sc}[dim]│[/dim]", highlight=False)
-    console.print(f"{pad}[dim]╰{sep}╯[/dim]", highlight=False)
+    console.print()
+    console.print(f"{pad}{sep}", highlight=False)
+    console.print(f"{pad}  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
     console.print()
 
 
