@@ -16,9 +16,10 @@ from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
 from arasul_tui.core.types import PendingHandler
 from arasul_tui.core.ui import (
     build_prompt,
+    console,
+    content_pad,
     print_header,
     print_info,
-    print_project_screen,
     print_result,
     print_separator,
     print_warning,
@@ -101,6 +102,36 @@ def _handle_number(state: TuiState, num: int) -> bool:
     return False
 
 
+def _fuzzy_match(query: str, projects: list[str]) -> list[str]:
+    """Simple fuzzy matching: score projects by substring and prefix match."""
+    q = query.lower()
+    exact = [p for p in projects if p.lower() == q]
+    if exact:
+        return exact
+    prefix = [p for p in projects if p.lower().startswith(q)]
+    if prefix:
+        return prefix
+    # Substring match
+    sub = [p for p in projects if q in p.lower()]
+    if sub:
+        return sub
+    # Character-by-character fuzzy
+    def _score(name: str) -> int:
+        n = name.lower()
+        idx = 0
+        for ch in q:
+            pos = n.find(ch, idx)
+            if pos == -1:
+                return -1
+            idx = pos + 1
+        return idx - len(q)
+
+    scored = [(p, _score(p)) for p in projects]
+    matches = [(p, s) for p, s in scored if s >= 0]
+    matches.sort(key=lambda x: x[1])
+    return [p for p, _ in matches]
+
+
 def run() -> None:
     state = TuiState()
     pending_handler: PendingHandler | None = None
@@ -125,8 +156,26 @@ def run() -> None:
         style=prompt_style,
     )
 
+    # Show dashboard only once at startup
     print_header(state, full=True)
     state.first_run = False
+
+    def _handle_result(result):
+        """Process a CommandResult: print output, chain wizards, handle navigation."""
+        nonlocal pending_handler, wizard_step, launch_request
+
+        print_result(result)
+
+        if result.prompt and result.pending_handler:
+            pending_handler = result.pending_handler
+            wizard_step = result.wizard_step
+
+        if result.refresh:
+            # Chat-flow: show compact context indicator instead of full redraw
+            print_header(state, full=False)
+
+        if result.launch_command and result.launch_cwd:
+            launch_request = (result.launch_command, result.launch_cwd)
 
     while True:
         try:
@@ -149,29 +198,12 @@ def run() -> None:
                 pending_handler = None
                 wizard_step = None
                 print_info("Cancelled.")
-                if state.screen == Screen.PROJECT and state.active_project:
-                    print_project_screen(state)
-                else:
-                    print_header(state, full=True)
                 continue
 
             result = pending_handler(state, command)
             pending_handler = None
             wizard_step = None
-            print_result(result)
-
-            if result.prompt and result.pending_handler:
-                pending_handler = result.pending_handler
-                wizard_step = result.wizard_step
-
-            if result.refresh:
-                if state.screen == Screen.PROJECT and state.active_project:
-                    print_project_screen(state)
-                else:
-                    print_header(state, full=True)
-
-            if result.launch_command and result.launch_cwd:
-                launch_request = (result.launch_command, result.launch_cwd)
+            _handle_result(result)
             if result.quit_app:
                 break
             continue
@@ -179,30 +211,23 @@ def run() -> None:
         # --- Shortcut: n (create) ---
         if command.lower() == "n":
             result = run_command(state, "/create")
-            print_result(result)
-            if result.prompt and result.pending_handler:
-                pending_handler = result.pending_handler
-                wizard_step = result.wizard_step
-            if result.refresh:
-                print_header(state, full=True)
+            _handle_result(result)
             continue
 
         # --- Shortcut: d (delete) ---
         if command.lower() == "d":
             result = run_command(state, "/delete")
-            print_result(result)
-            if result.prompt and result.pending_handler:
-                pending_handler = result.pending_handler
-                wizard_step = result.wizard_step
-            if result.refresh:
-                print_header(state, full=True)
+            _handle_result(result)
             continue
 
         # --- Number selection (project) ---
         if command.isdigit():
             num = int(command)
             if _handle_number(state, num):
-                print_project_screen(state)
+                from arasul_tui.core.ui import print_success
+
+                print_success(f"Opened [bold]{state.active_project.name}[/bold]")
+                print_header(state, full=False)
                 continue
             else:
                 print_warning(f"No project with number [bold]{num}[/bold].")
@@ -212,7 +237,7 @@ def run() -> None:
         if command.lower() == "b":
             state.active_project = None
             state.screen = Screen.MAIN
-            print_header(state, full=True)
+            print_info("Back to main.")
             continue
 
         # --- Single-letter shortcuts (c/g) when project is active ---
@@ -234,10 +259,7 @@ def run() -> None:
 
                 if not is_claude_configured():
                     result = run_command(state, "/claude")
-                    print_result(result)
-                    if result.prompt and result.pending_handler:
-                        pending_handler = result.pending_handler
-                        wizard_step = result.wizard_step
+                    _handle_result(result)
                     continue
 
                 if not shutil.which("claude"):
@@ -250,22 +272,39 @@ def run() -> None:
                 launch_request = ("claude", state.active_project)
                 break
 
+        # --- Fuzzy project search (non-slash, non-shortcut text) ---
+        if not command.startswith("/"):
+            projects = project_list()
+            matches = _fuzzy_match(command, projects)
+            if len(matches) == 1:
+                target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
+                if target.exists() and target.is_dir():
+                    state.active_project = target
+                    state.screen = Screen.PROJECT
+                    from arasul_tui.core.ui import print_success
+
+                    print_success(f"Opened [bold]{matches[0]}[/bold]")
+                    print_header(state, full=False)
+                    continue
+            elif len(matches) > 1:
+                from arasul_tui.core.ui import print_info as _pi
+
+                _pi(f"[bold]{len(matches)}[/bold] matches for [dim]{command}[/dim]:")
+                pad = content_pad()
+                for i, m in enumerate(matches[:5], 1):
+                    console.print(f"{pad}  [cyan]{i}[/cyan]  {m}", highlight=False)
+                continue
+
+            # Fall through to slash command handler
+            result = run_command(state, command)
+            _handle_result(result)
+            if result.quit_app:
+                break
+            continue
+
         # --- Slash commands ---
         result = run_command(state, command)
-        print_result(result)
-
-        if result.prompt and result.pending_handler:
-            pending_handler = result.pending_handler
-            wizard_step = result.wizard_step
-
-        if result.refresh:
-            if state.screen == Screen.PROJECT and state.active_project:
-                print_project_screen(state)
-            else:
-                print_header(state, full=True)
-
-        if result.launch_command and result.launch_cwd:
-            launch_request = (result.launch_command, result.launch_cwd)
+        _handle_result(result)
 
         if result.quit_app:
             break
