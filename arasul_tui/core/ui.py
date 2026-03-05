@@ -213,28 +213,26 @@ def _bar(pct: float, width: int = 10) -> str:
     return f"[dim][[/dim]{bar_filled}{bar_empty}[dim]][/dim]"
 
 
-def _status_line() -> str:
-    """Build the status line: version · power · ip · GitHub."""
-    parts = [f"[dim]{VERSION}[/dim]"]
-    info = _system_info()
-    power = info.get("power", "")
-    if power:
-        parts.append(f"[dim]{power}[/dim]")
-    ip = info.get("ip", "")
-    if ip and ip != "n/a":
-        parts.append(f"[dim]{ip}[/dim]")
-    docker = info.get("docker", "0")
-    if docker and docker != "0":
-        parts.append(f"[dim]Docker: {docker}[/dim]")
-    gh = _github_status()
-    parts.append(f"GitHub: {gh}")
-    return "  " + "  [dim]·[/dim]  ".join(parts)
-
-
-def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
-    """Build the dashboard content: system bars + projects."""
+def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
+    """Build the complete dashboard: status, metrics, projects."""
     info = _system_info()
     lines: list[str] = []
+
+    # --- Status line (version · power · ip · GitHub) ---
+    status_parts: list[str] = [f"[dim]{VERSION}[/dim]"]
+    power = info.get("power", "")
+    if power:
+        status_parts.append(f"[dim]{power}[/dim]")
+    ip = info.get("ip", "")
+    if ip and ip != "n/a":
+        status_parts.append(f"[dim]{ip}[/dim]")
+    docker = info.get("docker", "0")
+    if docker and docker != "0":
+        status_parts.append(f"[dim]Docker: {docker}[/dim]")
+    gh = _github_status()
+    status_parts.append(f"GitHub: {gh}")
+    lines.append("  " + "  [dim]·[/dim]  ".join(status_parts))
+    lines.append("")
 
     # --- System metrics with data bars ---
     bar_w = max(8, min(12, content_w // 6))
@@ -259,6 +257,7 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
     # --- Projects ---
     lines.append("")
     lines.append("  [bold]Projects[/bold]")
+    lines.append("")
 
     projects = project_list()
     for i, name in enumerate(projects, 1):
@@ -306,12 +305,8 @@ def _print_header_full(state: TuiState) -> None:
     # Separator
     console.print(f"{pad}{sep}", highlight=False)
 
-    # Status line (version · power · ip · GitHub)
-    console.print(f"{pad}{_status_line()}", highlight=False)
-    console.print()
-
-    # Dashboard content (metrics + projects)
-    dashboard = _build_dashboard(state, content_w)
+    # Dashboard content (status + metrics + projects)
+    dashboard = _build_full_dashboard(state, content_w)
     for line in dashboard:
         console.print(f"{pad}{line}", highlight=False)
     console.print()
