@@ -59,13 +59,14 @@ def test_registry_has_all_commands():
         "logins",
         "security",
         "mcp",
+        "tailscale",
     }
     actual = set(REGISTRY.names())
     assert expected == actual
 
 
 def test_registry_command_count():
-    assert len(REGISTRY.names()) == 20
+    assert len(REGISTRY.names()) == 21
 
 
 def test_slash_only(state: TuiState):

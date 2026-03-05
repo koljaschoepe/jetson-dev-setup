@@ -21,6 +21,7 @@ from arasul_tui.commands.project import (
 )
 from arasul_tui.commands.security import cmd_keys, cmd_logins, cmd_security
 from arasul_tui.commands.system import cmd_docker, cmd_health, cmd_setup, cmd_status
+from arasul_tui.commands.tailscale_cmd import cmd_tailscale
 
 __all__ = [
     # Project
@@ -52,6 +53,8 @@ __all__ = [
     "cmd_browser",
     # MCP
     "cmd_mcp",
+    # Tailscale
+    "cmd_tailscale",
     # Meta
     "cmd_help",
     "cmd_exit",

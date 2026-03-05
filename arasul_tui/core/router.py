@@ -23,6 +23,7 @@ from arasul_tui.commands import (
     cmd_security,
     cmd_setup,
     cmd_status,
+    cmd_tailscale,
 )
 from arasul_tui.core.registry import CommandRegistry, CommandSpec
 from arasul_tui.core.state import TuiState
@@ -99,6 +100,22 @@ def build_registry() -> CommandRegistry:
                 "add": "Add server",
                 "test": "Test servers",
                 "remove": "Remove server",
+            },
+        )
+    )
+
+    # Network
+    reg.register(
+        CommandSpec(
+            "tailscale",
+            cmd_tailscale,
+            "VPN remote access",
+            category="Network",
+            subcommands={
+                "status": "Connection status",
+                "install": "Install Tailscale",
+                "up": "Connect",
+                "down": "Disconnect",
             },
         )
     )
