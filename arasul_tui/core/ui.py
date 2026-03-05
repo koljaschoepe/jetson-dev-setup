@@ -207,6 +207,7 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
     """Build the full dashboard content: system bars + projects."""
     info = _system_info()
     lines: list[str] = []
+    lines.append("")
 
     # --- System metrics with data bars ---
     bar_w = max(8, min(12, content_w // 6))
@@ -247,8 +248,8 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
 
     # --- Projects ---
     lines.append("")
-    sep = "─" * (content_w - 2)
-    lines.append(f"  [dim]{sep}[/dim]")
+    lines.append("")
+    lines.append("  [bold]Projects[/bold]")
     lines.append("")
 
     projects = project_list()
