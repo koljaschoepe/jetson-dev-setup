@@ -225,7 +225,8 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     info = _system_info()
     lines: list[str] = []
 
-    # --- Status (split into two lines for narrow terminals) ---
+    # --- Status (two lines with spacing) ---
+    lines.append("")
     line1_parts: list[str] = [f"[dim]{VERSION}[/dim]"]
     power = info.get("power", "")
     if power:
@@ -234,6 +235,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     if ip and ip != "n/a":
         line1_parts.append(f"[dim]{ip}[/dim]")
     lines.append("  " + "  [dim]·[/dim]  ".join(line1_parts))
+    lines.append("")
 
     line2_parts: list[str] = []
     docker = info.get("docker", "0")
@@ -262,7 +264,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
         lines.append(f"  {'Temp':<{label_w}}{_bar(temp_pct, bar_w)}  [dim]{temp}°C[/dim]")
 
     gpu_pct = info.get("gpu_pct", 0)
-    lines.append(f"  {'GPU':<{label_w}}{_bar(gpu_pct, bar_w)}  [dim]{'idle' if gpu_pct == 0 else f'{gpu_pct}%'}[/dim]")
+    lines.append(f"  {'GPU':<{label_w}}{_bar(gpu_pct, bar_w)}  [dim]{gpu_pct}%[/dim]")
 
     # --- Projects ---
     lines.append("")
