@@ -36,11 +36,13 @@ TIER_FULL = 80
 TIER_MEDIUM = 60
 
 LOGO_LARGE = [
-    " ##  ###   ##  ###  #  # #   ",
-    "#  # #  # #  # #    #  # #   ",
-    "#### ###  #### ###  #  # #   ",
-    "#  # # #  #  #   #  #  # #   ",
-    "#  # #  # #  # ###   ##  ####",
+    " ####  #####   ####   ####  ##  ## ##",
+    "##  ## ##  ## ##  ## ##  ## ##  ## ##",
+    "##  ## ##  ## ##  ## ##     ##  ## ##",
+    "###### #####  ######  ####  ##  ## ##",
+    "##  ## ## ##  ##  ##     ## ##  ## ##",
+    "##  ## ##  ## ##  ## ##  ## ##  ## ##",
+    "##  ## ##  ## ##  ##  ####   ####  ######",
 ]
 
 
@@ -184,28 +186,61 @@ def _build_logo_lines() -> list[str]:
 
 
 def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
-    """Build single-column stacked layout: system info, projects, shortcuts."""
-    lines: list[str] = []
-    for sl in _system_info():
-        lines.append(sl)
-    lines.append(f"GitHub: {_github_status()}")
-    lines.append("")
-    lines.append("[bold]Projects[/bold]")
+    """Build two-column layout: system info (left) + projects (right)."""
+    left = list(_system_info())
+    left.append(f"GitHub: {_github_status()}")
+
+    right = ["[bold]Projects[/bold]"]
     projects = project_list()
     for i, name in enumerate(projects, 1):
         detail = _project_detail(name)
-        lines.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
+        right.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
     if not projects:
-        lines.append(" [dim]No projects[/dim]")
-    lines.append("")
-    lines.append(" [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete")
-    lines.append("")
-    lines.append(" [dim]/status  /help  /setup[/dim]")
+        right.append(" [dim]No projects[/dim]")
+    right.append("")
+    right.append(" [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete")
+
+    left_w = (content_w - 3) // 2
+    right_w = content_w - 3 - left_w
+
+    max_h = max(len(left), len(right))
+    top_pad = (max_h - len(left)) // 2
+    left = [""] * top_pad + left + [""] * (max_h - len(left) - top_pad)
+    right += [""] * (max_h - len(right))
+
+    lines = [
+        f"{_pad_right(left_col, left_w)} [dim]│[/dim] {_pad_right(right_col, right_w)}"
+        for left_col, right_col in zip(left, right, strict=False)
+    ]
+
+    return lines
+
+
+def _build_quickstart_lines(content_w: int) -> list[str]:
+    """Build Quick Start section."""
+    lines: list[str] = []
+    items = [
+        ("[cyan]/open[/cyan] [dim]<name>[/dim]", "Open project"),
+        ("[cyan]/claude[/cyan]", "Start Claude Code"),
+        ("[cyan]/help[/cyan]", "All commands"),
+        ("[cyan]/setup[/cyan]", "Setup wizard"),
+    ]
+    # Lay out in two columns
+    col_w = content_w // 2
+    for i in range(0, len(items), 2):
+        left_cmd, left_desc = items[i]
+        left_str = f"  {left_cmd}  [dim]{left_desc}[/dim]"
+        if i + 1 < len(items):
+            right_cmd, right_desc = items[i + 1]
+            right_str = f"  {right_cmd}  [dim]{right_desc}[/dim]"
+        else:
+            right_str = ""
+        lines.append(f"{_pad_right(left_str, col_w)}{right_str}")
     return lines
 
 
 def _print_header_full(state: TuiState) -> None:
-    """Full header: ornate double-border frame + ASCII logo + single-column info."""
+    """Full header: ornate frame + ASCII logo + two-column info + quick start."""
     w = _adaptive_width()
     content_w = w - 8
     bar = "═" * (w - 6)
@@ -213,11 +248,13 @@ def _print_header_full(state: TuiState) -> None:
 
     logo_lines = _build_logo_lines()
     info_lines = _build_info_lines(state, content_w)
+    quick_lines = _build_quickstart_lines(content_w)
 
     frame: list[str] = []
     frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
     frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
 
+    # Logo section
     logo_w = max(len(ln) for ln in logo_lines)
     for line in logo_lines:
         left_pad = (content_w - logo_w) // 2
@@ -227,7 +264,16 @@ def _print_header_full(state: TuiState) -> None:
 
     frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
 
+    # Two-column info section (system + projects)
     for line in info_lines:
+        frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
+
+    frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
+
+    # Quick Start section
+    qs_title = _pad_right("[bold]Quick Start[/bold]", content_w)
+    frame.append(f"[cyan]║[/cyan]   {qs_title}   [cyan]║[/cyan]")
+    for line in quick_lines:
         frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
 
     frame.append(f"[cyan]║ ╔{bar}╗ ║[/cyan]")
@@ -241,7 +287,7 @@ def _print_header_full(state: TuiState) -> None:
 
 
 def _print_header_medium(state: TuiState) -> None:
-    """Medium header: thin separators + bold text header + single-column info."""
+    """Medium header: thin separators + stacked sections."""
     w = min(console.width - 2, 60)
     pad = " " * _frame_left_pad()
     sep = "─" * w
@@ -264,6 +310,10 @@ def _print_header_medium(state: TuiState) -> None:
     if not projects:
         console.print(f"{pad}  [dim]No projects[/dim]", highlight=False)
     console.print(f"{pad}  [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+
+    console.print(f"{pad} [bold]Quick Start[/bold]", highlight=False)
+    console.print(f"{pad}  [cyan]/open[/cyan] [dim]<name>[/dim]   [cyan]/claude[/cyan]   [cyan]/help[/cyan]   [cyan]/setup[/cyan]", highlight=False)
     console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
     console.print()
 
