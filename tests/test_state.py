@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, TuiState
+from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
 
 
 def test_default_state():
@@ -10,6 +10,7 @@ def test_default_state():
     assert state.active_project is None
     assert state.project_root == DEFAULT_PROJECT_ROOT
     assert state.first_run is True
+    assert state.screen == Screen.MAIN
 
 
 def test_state_custom_root(tmp_path: Path):
@@ -34,3 +35,22 @@ def test_state_wizard_fields():
 
     state._wizard_token = "test-token"
     assert state._wizard_token == "test-token"
+
+
+def test_state_wizard_dict():
+    state = TuiState()
+    assert state._wizard == {}
+
+    state._wizard["custom_key"] = "custom_value"
+    assert state._wizard["custom_key"] == "custom_value"
+
+    # Legacy properties delegate to _wizard
+    state._wizard_token = "tk"
+    assert state._wizard["token"] == "tk"
+
+
+def test_state_screen_enum():
+    state = TuiState()
+    assert state.screen == Screen.MAIN
+    state.screen = Screen.PROJECT
+    assert state.screen == Screen.PROJECT

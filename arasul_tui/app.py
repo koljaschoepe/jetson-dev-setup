@@ -12,13 +12,13 @@ from prompt_toolkit.styles import Style
 
 from arasul_tui.core.auth import get_auth_env
 from arasul_tui.core.router import REGISTRY, run_command
-from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, TuiState
+from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
 from arasul_tui.core.types import PendingHandler
 from arasul_tui.core.ui import (
     build_prompt,
     print_header,
     print_info,
-    print_project_menu,
+    print_project_screen,
     print_result,
     print_separator,
     print_warning,
@@ -53,6 +53,25 @@ class SlashCompleter(Completer):
             return
 
         cmd = parts[0]
+
+        # Generic subcommand completion
+        spec = REGISTRY.get(cmd)
+        if spec and spec.subcommands:
+            pref = ""
+            if len(parts) >= 2 and not has_trailing_space:
+                pref = parts[1]
+            for sub, desc in spec.subcommands.items():
+                if sub.startswith(pref):
+                    full = f"/{cmd} {sub}"
+                    yield Completion(
+                        full,
+                        start_position=-len(text),
+                        display=HTML(f"<b>/{cmd}</b> {sub}"),
+                        display_meta=desc,
+                    )
+            return
+
+        # /open <name> completion
         if cmd == "open":
             names = REGISTRY._project_names()
             pref = ""
@@ -67,25 +86,6 @@ class SlashCompleter(Completer):
                         display=HTML(f"<b>/open</b> {name}"),
                         display_meta="Open project",
                     )
-        elif cmd == "browser":
-            browser_subs = {
-                "status": "Health check",
-                "test": "Connection test",
-                "install": "Install/update",
-                "mcp": "Configure MCP",
-            }
-            pref = ""
-            if len(parts) >= 2 and not has_trailing_space:
-                pref = parts[1]
-            for sub, desc in browser_subs.items():
-                if sub.startswith(pref):
-                    full = f"/browser {sub}"
-                    yield Completion(
-                        full,
-                        start_position=-len(text),
-                        display=HTML(f"<b>/browser</b> {sub}"),
-                        display_meta=desc,
-                    )
 
 
 def _handle_number(state: TuiState, num: int) -> bool:
@@ -96,17 +96,9 @@ def _handle_number(state: TuiState, num: int) -> bool:
         target = (DEFAULT_PROJECT_ROOT / name).resolve()
         if target.exists() and target.is_dir():
             state.active_project = target
+            state.screen = Screen.PROJECT
             return True
     return False
-
-
-def _handle_action_shortcut(state: TuiState, key: str) -> tuple[bool, str | None]:
-    """Handle single-letter action shortcuts when a project is active."""
-    if key == "c":
-        return True, "claude"
-    if key == "x":
-        return True, "codex"
-    return False, None
 
 
 def run() -> None:
@@ -151,7 +143,18 @@ def run() -> None:
         if not command:
             continue
 
+        # --- Pending handler (wizard) ---
         if pending_handler:
+            if command.lower() == "q":
+                pending_handler = None
+                wizard_step = None
+                print_info("Cancelled.")
+                if state.screen == Screen.PROJECT and state.active_project:
+                    print_project_screen(state)
+                else:
+                    print_header(state, full=True)
+                continue
+
             result = pending_handler(state, command)
             pending_handler = None
             wizard_step = None
@@ -162,8 +165,8 @@ def run() -> None:
                 wizard_step = result.wizard_step
 
             if result.refresh:
-                if state.active_project:
-                    print_project_menu(state)
+                if state.screen == Screen.PROJECT and state.active_project:
+                    print_project_screen(state)
                 else:
                     print_header(state, full=True)
 
@@ -173,6 +176,7 @@ def run() -> None:
                 break
             continue
 
+        # --- Shortcut: n (create) ---
         if command.lower() == "n":
             result = run_command(state, "/create")
             print_result(result)
@@ -183,6 +187,7 @@ def run() -> None:
                 print_header(state, full=True)
             continue
 
+        # --- Shortcut: d (delete) ---
         if command.lower() == "d":
             result = run_command(state, "/delete")
             print_result(result)
@@ -193,44 +198,59 @@ def run() -> None:
                 print_header(state, full=True)
             continue
 
+        # --- Number selection (project) ---
         if command.isdigit():
             num = int(command)
             if _handle_number(state, num):
-                print_project_menu(state)
+                print_project_screen(state)
                 continue
             else:
                 print_warning(f"No project with number [bold]{num}[/bold].")
                 continue
 
+        # --- Shortcut: b (back to main) ---
         if command.lower() == "b":
             state.active_project = None
+            state.screen = Screen.MAIN
             print_header(state, full=True)
             continue
 
-        if len(command) == 1 and command.lower() in ("c", "x") and state.active_project:
-            handled, launch_cmd = _handle_action_shortcut(state, command.lower())
-            if handled and launch_cmd:
-                if not shutil.which(launch_cmd):
+        # --- Single-letter shortcuts (c/g) when project is active ---
+        if len(command) == 1 and command.lower() in ("c", "g") and state.active_project:
+            key = command.lower()
+
+            if key == "g":
+                if not shutil.which("lazygit"):
                     from arasul_tui.core.ui import print_error
 
-                    print_error(f"[bold]{launch_cmd}[/bold] not found.")
+                    print_error("[bold]lazygit[/bold] is not installed.")
                     continue
-
-                if launch_cmd == "claude":
-                    from arasul_tui.core.auth import is_claude_configured
-
-                    if not is_claude_configured():
-                        result = run_command(state, "/claude")
-                        print_result(result)
-                        if result.prompt and result.pending_handler:
-                            pending_handler = result.pending_handler
-                            wizard_step = result.wizard_step
-                        continue
-
-                print_info(f"Starting [bold]{launch_cmd}[/bold] in [dim]{state.active_project}[/dim] ...")
-                launch_request = (launch_cmd, state.active_project)
+                print_info(f"Starting [bold]lazygit[/bold] in [dim]{state.active_project.name}[/dim] ...")
+                launch_request = ("lazygit", state.active_project)
                 break
 
+            if key == "c":
+                from arasul_tui.core.auth import is_claude_configured
+
+                if not is_claude_configured():
+                    result = run_command(state, "/claude")
+                    print_result(result)
+                    if result.prompt and result.pending_handler:
+                        pending_handler = result.pending_handler
+                        wizard_step = result.wizard_step
+                    continue
+
+                if not shutil.which("claude"):
+                    from arasul_tui.core.ui import print_error
+
+                    print_error("[bold]claude[/bold] is not installed.")
+                    continue
+
+                print_info(f"Starting [bold]Claude Code[/bold] in [dim]{state.active_project.name}[/dim] ...")
+                launch_request = ("claude", state.active_project)
+                break
+
+        # --- Slash commands ---
         result = run_command(state, command)
         print_result(result)
 
@@ -239,8 +259,8 @@ def run() -> None:
             wizard_step = result.wizard_step
 
         if result.refresh:
-            if state.active_project:
-                print_project_menu(state)
+            if state.screen == Screen.PROJECT and state.active_project:
+                print_project_screen(state)
             else:
                 print_header(state, full=True)
 

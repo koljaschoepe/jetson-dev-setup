@@ -38,9 +38,34 @@ def test_exit_command(state: TuiState):
 
 
 def test_registry_has_all_commands():
-    expected = {"help", "open", "create", "clone", "status", "claude", "codex", "git", "browser", "delete", "exit"}
+    expected = {
+        "help",
+        "open",
+        "create",
+        "clone",
+        "status",
+        "claude",
+        "git",
+        "browser",
+        "delete",
+        "exit",
+        "info",
+        "repos",
+        "auth",
+        "health",
+        "setup",
+        "docker",
+        "keys",
+        "logins",
+        "security",
+        "mcp",
+    }
     actual = set(REGISTRY.names())
     assert expected == actual
+
+
+def test_registry_command_count():
+    assert len(REGISTRY.names()) == 20
 
 
 def test_slash_only(state: TuiState):
@@ -57,3 +82,12 @@ def test_parse_error_unmatched_quote(state: TuiState):
 def test_prefix_suggestion(state: TuiState):
     result = run_command(state, "/hel")
     assert result.ok is False
+
+
+def test_registry_categories():
+    cats = REGISTRY.categories()
+    assert "Projects" in cats
+    assert "Claude Code" in cats
+    assert "System" in cats
+    assert "Security" in cats
+    assert "Meta" in cats

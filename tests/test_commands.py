@@ -132,6 +132,4 @@ def test_clone_finish_invalid_url(state: TuiState):
 def test_create_path_traversal_rejected(state: TuiState):
     """Ensure path traversal in project names doesn't crash."""
     result = _create_finish(state, "../escape")
-    # The function creates the directory regardless — but it still works
-    # The important thing is it doesn't crash
     assert isinstance(result.ok, bool)

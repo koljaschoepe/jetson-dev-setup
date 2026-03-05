@@ -14,6 +14,8 @@ class CommandSpec:
     name: str
     handler: Handler
     help_text: str
+    category: str = ""
+    subcommands: dict[str, str] | None = None
 
 
 class CommandRegistry:
@@ -31,6 +33,14 @@ class CommandRegistry:
 
     def specs(self) -> list[CommandSpec]:
         return [self._commands[n] for n in self.names()]
+
+    def categories(self) -> dict[str, list[CommandSpec]]:
+        """Return specs grouped by category, preserving order."""
+        cats: dict[str, list[CommandSpec]] = {}
+        for spec in self.specs():
+            cat = spec.category or "Other"
+            cats.setdefault(cat, []).append(spec)
+        return cats
 
     def complete(self, line: str) -> list[str]:
         """Return completion candidates for a slash command line."""
@@ -50,6 +60,7 @@ class CommandRegistry:
 
         cmd = parts[0]
         args = parts[1:]
+
         if cmd == "open":
             names = self._project_names()
             pref = ""
@@ -57,12 +68,13 @@ class CommandRegistry:
                 pref = args[0]
             return [f"/open {name}" for name in names if name.startswith(pref)]
 
-        if cmd == "browser":
-            subs = ["status", "test", "install", "mcp"]
+        # Generic subcommand completion
+        spec = self.get(cmd)
+        if spec and spec.subcommands:
             pref = ""
             if len(args) >= 1 and not has_trailing_space:
                 pref = args[0]
-            return [f"/browser {s}" for s in subs if s.startswith(pref)]
+            return [f"/{cmd} {s}" for s in spec.subcommands if s.startswith(pref)]
 
         return []
 

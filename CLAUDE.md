@@ -47,20 +47,33 @@ Scripts read variables via exported environment variables from `setup.sh`.
 ├── lib/
 │   └── common.sh       # Shared shell library (log, err, check_root, etc.)
 ├── arasul_tui/
-│   ├── app.py          # TUI application
-│   ├── commands.py     # Slash commands
+│   ├── app.py          # TUI application (two-level navigation)
 │   ├── install.sh      # Installer (venv + launcher)
+│   ├── commands/       # Command handlers (8 modules)
+│   │   ├── __init__.py      # Re-exports all handlers
+│   │   ├── project.py       # /open, /create, /clone, /delete, /info, /repos
+│   │   ├── ai.py            # /claude, /auth
+│   │   ├── system.py        # /status, /health, /setup, /docker
+│   │   ├── security.py      # /keys, /logins, /security
+│   │   ├── git_ops.py       # /git (pull/push/log/status + setup wizard)
+│   │   ├── browser_cmd.py   # /browser (status/test/install/mcp)
+│   │   ├── mcp.py           # /mcp (list/add/test/remove)
+│   │   └── meta.py          # /help, /exit
 │   └── core/
-│       ├── auth.py     # Claude OAuth token management
-│       ├── browser.py  # Playwright/headless browser management
-│       ├── constants.py # Shared constants (CLAUDE_JSON path)
-│       ├── projects.py # YAML project registry CRUD
-│       ├── registry.py # Command registry
-│       ├── router.py   # Command routing and dispatch
-│       ├── shell.py    # Subprocess helper (run_cmd)
-│       ├── state.py    # TUI state dataclass
-│       ├── types.py    # CommandResult and type definitions
-│       └── ui.py       # Rich-based UI rendering
+│       ├── auth.py          # Claude OAuth token management
+│       ├── browser.py       # Playwright/headless browser management
+│       ├── constants.py     # Shared constants (CLAUDE_JSON path)
+│       ├── docker_info.py   # Docker container listing + disk usage
+│       ├── git_info.py      # Git metadata (branch, dirty, language detection)
+│       ├── projects.py      # YAML project registry CRUD
+│       ├── registry.py      # Command registry (with categories + subcommands)
+│       ├── router.py        # Command routing and dispatch (20 commands)
+│       ├── security.py      # SSH keys, login history, security audit
+│       ├── setup_wizard.py  # Setup step definitions + runner
+│       ├── shell.py         # Subprocess helper (run_cmd)
+│       ├── state.py         # TUI state (Screen enum, wizard dict)
+│       ├── types.py         # CommandResult and type definitions
+│       └── ui.py            # Rich UI (project screen, styled panels, checklist)
 ├── tests/              # Pytest test suite
 ├── scripts/
 │   ├── 01-system-optimize.sh   # Disable GUI, services, tune kernel
@@ -97,17 +110,17 @@ Scripts read variables via exported environment variables from `setup.sh`.
 - Optional installer:
   - `./arasul_tui/install.sh`
   - Start with `arasul` or alias `atui`
-- Slash commands:
-  - `/status` — System status
-  - `/open <project>` — Activate project folder
-  - `/create` — New project (interactive)
-  - `/clone` — Clone GitHub repo (interactive)
-  - `/claude` — Start Claude Code (with OAuth setup wizard)
-  - `/codex` — Start Codex
-  - `/git` — GitHub CLI setup wizard
-  - `/delete` — Delete project (interactive)
-  - `/browser status|test|install|mcp` — Headless browser management
-  - `/help`, `/exit`
+- Two-level navigation: Main Screen → Project Screen
+- 20 slash commands across 7 categories:
+  - **Projects:** `/open`, `/create`, `/clone`, `/delete`, `/info`, `/repos`
+  - **Claude Code:** `/claude`, `/auth`
+  - **Git:** `/git` (no args = setup wizard), `/git pull`, `/git push`, `/git log`, `/git status`
+  - **System:** `/status`, `/health`, `/setup`, `/docker`
+  - **Security:** `/keys`, `/logins`, `/security`
+  - **Browser:** `/browser status|test|install|mcp`
+  - **MCP:** `/mcp list|add|test|remove`
+  - **Meta:** `/help`, `/exit`
+- Keyboard shortcuts: `1-9` (select project), `n` (new), `d` (delete), `c` (Claude), `g` (lazygit), `b` (back)
 
 ## Headless Browser (Playwright)
 - Playwright + Chromium headless for AI agent browser automation

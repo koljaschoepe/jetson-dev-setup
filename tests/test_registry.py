@@ -63,7 +63,46 @@ def test_complete_no_slash():
 
 def test_complete_browser_subcommands():
     reg = CommandRegistry()
-    reg.register(CommandSpec("browser", _noop_handler, "Browser"))
+    reg.register(
+        CommandSpec(
+            "browser",
+            _noop_handler,
+            "Browser",
+            subcommands={"status": "Status", "test": "Test", "install": "Install", "mcp": "MCP"},
+        )
+    )
 
     results = reg.complete("/browser st")
     assert "/browser status" in results
+
+
+def test_complete_generic_subcommands():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("git", _noop_handler, "Git", subcommands={"pull": "Pull", "push": "Push", "log": "Log"}))
+
+    results = reg.complete("/git pu")
+    assert "/git pull" in results
+    assert "/git push" in results
+    assert "/git log" not in results
+
+
+def test_categories():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("help", _noop_handler, "Help", category="Meta"))
+    reg.register(CommandSpec("status", _noop_handler, "Status", category="System"))
+    reg.register(CommandSpec("health", _noop_handler, "Health", category="System"))
+
+    cats = reg.categories()
+    assert "Meta" in cats
+    assert "System" in cats
+    assert len(cats["System"]) == 2
+
+
+def test_category_field():
+    spec = CommandSpec("test", _noop_handler, "Test", category="Custom")
+    assert spec.category == "Custom"
+
+
+def test_subcommands_field():
+    spec = CommandSpec("git", _noop_handler, "Git", subcommands={"pull": "Pull", "push": "Push"})
+    assert spec.subcommands == {"pull": "Pull", "push": "Push"}
