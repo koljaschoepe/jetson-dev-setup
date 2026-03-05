@@ -58,16 +58,15 @@ _DOT = "\u00b7"    # ·
 _DEG = "\u00b0"    # °
 _CHECK = "\u2713"  # ✓
 
-# 4-line half-block logo (doubled from 2-line):
-#   ▄▀▀▄ █▀▀▄ ▄▀▀▄ ▄▀▀▀ █  █ █
-#   █  █ █▄▄▀ █  █ █▄▄  █  █ █
-#   █▀▀█ █ ▀▄ █▀▀█   ▀█ █  █ █
-#   █  █ █  █ █  █ ▀▄▄▀ ▀▄▄▀ █▄▄▄
+# 7-line block logo (large):
 LOGO_LARGE = [
-    "  \u2584\u2580\u2580\u2584 \u2588\u2580\u2580\u2584 \u2584\u2580\u2580\u2584 \u2584\u2580\u2580\u2580 \u2588  \u2588 \u2588   ",
-    "  \u2588  \u2588 \u2588\u2584\u2584\u2580 \u2588  \u2588 \u2588\u2584\u2584  \u2588  \u2588 \u2588   ",
-    "  \u2588\u2580\u2580\u2588 \u2588 \u2580\u2584 \u2588\u2580\u2580\u2588   \u2580\u2588 \u2588  \u2588 \u2588   ",
-    "  \u2588  \u2588 \u2588  \u2588 \u2588  \u2588 \u2580\u2584\u2584\u2580 \u2580\u2584\u2584\u2580 \u2588\u2584\u2584\u2584",
+    "   \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588    \u2588\u2588\u2588\u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588      \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588      \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588   \u2588\u2588  \u2588\u2588  \u2588\u2588   \u2588\u2588   \u2588\u2588      \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588      \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
+    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588\u2588\u2588\u2588    \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588",
 ]
 
 LOGO_COMPACT = [
@@ -308,9 +307,6 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     if temp:
         lines.append(_metric_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
 
-    gpu_pct = info.get("gpu_pct", 0)
-    lines.append(_metric_row("GPU", _bar(gpu_pct, bar_w), f"{gpu_pct}%"))
-
     # Empty line between metrics and services
     lines.append(_empty_row())
 
@@ -365,7 +361,6 @@ def _print_header_full(state: TuiState) -> None:
     w = _adaptive_width()
     content_w = w - 6
     pad = content_pad()
-    sep = _dim_hline(_sep_width())
 
     console.print()
 
@@ -377,10 +372,6 @@ def _print_header_full(state: TuiState) -> None:
         if animate:
             time.sleep(0.06)
 
-    console.print(f"{pad}{sep}", highlight=False)
-    if animate:
-        time.sleep(0.04)
-
     dashboard = _build_full_dashboard(state, content_w)
     for line in dashboard:
         console.print(f"{pad}{line}", highlight=False)
@@ -391,14 +382,11 @@ def _print_header_medium(state: TuiState) -> None:
     """Medium header: compact logo + full dashboard."""
     content_w = min(console.width - 6, MAX_WIDTH - 6)
     pad = content_pad()
-    sep = _dim_hline(_sep_width())
 
     console.print()
     for i, line in enumerate(LOGO_COMPACT):
         color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
         console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
-    console.print(f"{pad}{sep}", highlight=False)
-
     dashboard = _build_full_dashboard(state, content_w)
     for line in dashboard:
         console.print(f"{pad}{line}", highlight=False)
@@ -410,8 +398,6 @@ def _print_header_compact(state: TuiState) -> None:
     pad = " " * _frame_left_pad()
     console.print()
     console.print(f"{pad}[bold {PRIMARY}]ARASUL[/bold {PRIMARY}] [{DIM}]{VERSION}[/{DIM}]", highlight=False)
-    w = min(console.width - 2, 40)
-    console.print(f"{pad}{_dim_hline(w)}", highlight=False)
     info = _system_info()
     ram_pct = float(info.get("ram_pct", 0))
     disk_pct = float(info.get("disk_pct", 0))
@@ -431,11 +417,9 @@ def _print_project_screen(state: TuiState) -> None:
 
     pad = content_pad()
     name = project.name
-    sep = _dim_hline(_sep_width())
 
     console.print()
     console.print(f"{pad}[bold {PRIMARY}]{name}[/bold {PRIMARY}]", highlight=False)
-    console.print(f"{pad}{sep}", highlight=False)
 
     from arasul_tui.core.git_info import detect_language, get_disk_usage, get_git_info
 
