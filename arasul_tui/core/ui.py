@@ -58,9 +58,16 @@ _DOT = "\u00b7"    # ·
 _DEG = "\u00b0"    # °
 _CHECK = "\u2713"  # ✓
 
+# 4-line half-block logo (doubled from 2-line):
+#   ▄▀▀▄ █▀▀▄ ▄▀▀▄ ▄▀▀▀ █  █ █
+#   █  █ █▄▄▀ █  █ █▄▄  █  █ █
+#   █▀▀█ █ ▀▄ █▀▀█   ▀█ █  █ █
+#   █  █ █  █ █  █ ▀▄▄▀ ▀▄▄▀ █▄▄▄
 LOGO_LARGE = [
-    "  \u2584\u2580\u2588 \u2588\u2580\u2588 \u2584\u2580\u2588 \u2588\u2580\u2580 \u2588 \u2588 \u2588  ",
-    "  \u2588\u2580\u2588 \u2588\u2580\u2584 \u2588\u2580\u2588 \u2584\u2588 \u2588\u2584\u2588 \u2588\u2584\u2584",
+    "  \u2584\u2580\u2580\u2584 \u2588\u2580\u2580\u2584 \u2584\u2580\u2580\u2584 \u2584\u2580\u2580\u2580 \u2588  \u2588 \u2588   ",
+    "  \u2588  \u2588 \u2588\u2584\u2584\u2580 \u2588  \u2588 \u2588\u2584\u2584  \u2588  \u2588 \u2588   ",
+    "  \u2588\u2580\u2580\u2588 \u2588 \u2580\u2584 \u2588\u2580\u2580\u2588   \u2580\u2588 \u2588  \u2588 \u2588   ",
+    "  \u2588  \u2588 \u2588  \u2588 \u2588  \u2588 \u2580\u2584\u2584\u2580 \u2580\u2584\u2584\u2580 \u2588\u2584\u2584\u2584",
 ]
 
 LOGO_COMPACT = [
@@ -275,25 +282,37 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     box_bot = f"  [{DIM}]{_corner_bl}{_hline(box_w)}{_corner_br}[/{DIM}]"
     lines.append(box_top)
 
-    # System metrics inside box
-    def _box_row(label: str, bar: str, detail: str) -> str:
-        return f"  [{DIM}]{_vline}[/{DIM}]  {label:<5}{bar}  [{DIM}]{detail}[/{DIM}]"
+    # System metrics inside box (with right border)
+    def _box_row_closed(content: str) -> str:
+        """Box row with left+right │ borders, padded to box_w."""
+        vis = _vis_len(content)
+        pad_n = max(0, box_w - vis)
+        return f"  [{DIM}]{_vline}[/{DIM}]{content}{' ' * pad_n}[{DIM}]{_vline}[/{DIM}]"
+
+    def _metric_row(label: str, bar: str, detail: str) -> str:
+        return _box_row_closed(f"  {label:<5}{bar}  [{DIM}]{detail}[/{DIM}]")
+
+    def _empty_row() -> str:
+        return _box_row_closed("")
 
     ram_raw = info.get("ram_pct", 0)
     ram_pct = float(ram_raw) if isinstance(ram_raw, (int, float)) else 0.0
-    lines.append(_box_row("RAM", _bar(ram_pct, bar_w), info["ram"]))
+    lines.append(_metric_row("RAM", _bar(ram_pct, bar_w), info["ram"]))
 
     disk_raw = info.get("disk_pct", 0)
     disk_pct = float(disk_raw) if isinstance(disk_raw, (int, float)) else 0.0
-    lines.append(_box_row("Disk", _bar(disk_pct, bar_w), info["disk"]))
+    lines.append(_metric_row("Disk", _bar(disk_pct, bar_w), info["disk"]))
 
     temp = info.get("temp", 0)
     temp_pct = min(100, max(0, (temp - 20) * 100 // 80)) if temp else 0
     if temp:
-        lines.append(_box_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
+        lines.append(_metric_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
 
     gpu_pct = info.get("gpu_pct", 0)
-    lines.append(_box_row("GPU", _bar(gpu_pct, bar_w), f"{gpu_pct}%"))
+    lines.append(_metric_row("GPU", _bar(gpu_pct, bar_w), f"{gpu_pct}%"))
+
+    # Empty line between metrics and services
+    lines.append(_empty_row())
 
     # Status row inside box
     svc_parts: list[str] = []
@@ -303,7 +322,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     if docker and docker != "0":
         svc_parts.append(f"Docker: {docker}")
     svc_line = dot_sep.join(svc_parts)
-    lines.append(f"  [{DIM}]{_vline}[/{DIM}]  [{DIM}]{svc_line}[/{DIM}]")
+    lines.append(_box_row_closed(f"  [{DIM}]{svc_line}[/{DIM}]"))
 
     lines.append(box_bot)
 
