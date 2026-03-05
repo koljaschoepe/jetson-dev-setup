@@ -213,11 +213,28 @@ def _bar(pct: float, width: int = 10) -> str:
     return f"[dim][[/dim]{bar_filled}{bar_empty}[dim]][/dim]"
 
 
+def _status_line() -> str:
+    """Build the status line: version · power · ip · GitHub."""
+    parts = [f"[dim]{VERSION}[/dim]"]
+    info = _system_info()
+    power = info.get("power", "")
+    if power:
+        parts.append(f"[dim]{power}[/dim]")
+    ip = info.get("ip", "")
+    if ip and ip != "n/a":
+        parts.append(f"[dim]{ip}[/dim]")
+    docker = info.get("docker", "0")
+    if docker and docker != "0":
+        parts.append(f"[dim]Docker: {docker}[/dim]")
+    gh = _github_status()
+    parts.append(f"GitHub: {gh}")
+    return "  " + "  [dim]·[/dim]  ".join(parts)
+
+
 def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
-    """Build the full dashboard content: system bars + projects."""
+    """Build the dashboard content: system bars + projects."""
     info = _system_info()
     lines: list[str] = []
-    lines.append("")
 
     # --- System metrics with data bars ---
     bar_w = max(8, min(12, content_w // 6))
@@ -239,28 +256,9 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
     gpu_pct = info.get("gpu_pct", 0)
     lines.append(f"  {'GPU':<{label_w}}{_bar(gpu_pct, bar_w)}  [dim]{'idle' if gpu_pct == 0 else f'{gpu_pct}%'}[/dim]")
 
-    # Extra info line
-    extra_parts = []
-    power = info.get("power", "")
-    if power:
-        extra_parts.append(f"[dim]{power}[/dim]")
-    ip = info.get("ip", "")
-    if ip and ip != "n/a":
-        extra_parts.append(f"[dim]{ip}[/dim]")
-    docker = info.get("docker", "0")
-    if docker and docker != "0":
-        extra_parts.append(f"[dim]Docker: {docker}[/dim]")
-    gh = _github_status()
-    extra_parts.append(f"GitHub: {gh}")
-    if extra_parts:
-        lines.append("")
-        lines.append("  " + "  [dim]·[/dim]  ".join(extra_parts))
-
     # --- Projects ---
     lines.append("")
-    lines.append("")
     lines.append("  [bold]Projects[/bold]")
-    lines.append("")
 
     projects = project_list()
     for i, name in enumerate(projects, 1):
@@ -289,8 +287,9 @@ def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
 def _print_header_full(state: TuiState) -> None:
     """Full dashboard: frameless layout with gradient logo."""
     w = _adaptive_width()
+    content_w = w - 6
     pad = content_pad()
-    sep = f"[dim]{'─' * (w - 6)}[/dim]"
+    sep = f"[dim]{'─' * content_w}[/dim]"
 
     logo_lines = list(LOGO_LARGE)
     logo_w = max(len(ln) for ln in logo_lines)
@@ -299,20 +298,20 @@ def _print_header_full(state: TuiState) -> None:
 
     # Logo with blue gradient
     for i, line in enumerate(logo_lines):
-        left_pad = (w - 6 - logo_w) // 2
+        left_pad = (content_w - logo_w) // 2
         padded = " " * left_pad + line
         color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
         console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
 
-    # Version right-aligned
-    ver_space = w - 6 - len(VERSION)
-    console.print(f"{pad}[dim]{' ' * ver_space}{VERSION}[/dim]", highlight=False)
-
     # Separator
     console.print(f"{pad}{sep}", highlight=False)
 
-    # Dashboard content
-    dashboard = _build_dashboard(state, w - 6)
+    # Status line (version · power · ip · GitHub)
+    console.print(f"{pad}{_status_line()}", highlight=False)
+    console.print()
+
+    # Dashboard content (metrics + projects)
+    dashboard = _build_dashboard(state, content_w)
     for line in dashboard:
         console.print(f"{pad}{line}", highlight=False)
     console.print()
