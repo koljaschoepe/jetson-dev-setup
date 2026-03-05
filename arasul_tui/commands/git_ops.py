@@ -5,6 +5,7 @@ import socket
 import subprocess
 from pathlib import Path
 
+from arasul_tui.core.git_info import parse_gh_account
 from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
@@ -38,15 +39,7 @@ def _git_status_lines() -> list[tuple[str, str]]:
 
     auth = run_cmd("gh auth status 2>&1", timeout=5)
     if "Logged in" in auth:
-        account = ""
-        for line in auth.splitlines():
-            if "account" in line.lower():
-                parts = line.strip().split()
-                for i, p in enumerate(parts):
-                    if p == "account" and i + 1 < len(parts):
-                        account = parts[i + 1]
-                        break
-                break
+        account = parse_gh_account(auth)
         rows.append(("Auth", f"[green]✓[/green] {account}" if account else "[green]✓[/green] logged in"))
     else:
         rows.append(("Auth", "[red]✗[/red] not logged in"))
@@ -207,16 +200,7 @@ def _git_wizard_auth_token(state: TuiState, user_input: str) -> CommandResult:
     run_cmd("gh auth setup-git", timeout=5)
 
     auth_check = run_cmd("gh auth status 2>&1", timeout=5)
-    account = ""
-    for line in auth_check.splitlines():
-        if "account" in line.lower():
-            parts = line.strip().split()
-            for i, p in enumerate(parts):
-                if p == "account" and i + 1 < len(parts):
-                    account = parts[i + 1]
-                    break
-            break
-
+    account = parse_gh_account(auth_check)
     print_success(f"Logged in as [bold]{account}[/bold]" if account else "Authentication successful!")
     print_success("Git credential helper configured")
 

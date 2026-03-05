@@ -54,20 +54,11 @@ def _record_from_dict(item: dict[str, Any]) -> ProjectRecord:
     )
 
 
+
 def list_projects() -> list[ProjectRecord]:
     reg = load_registry()
     out = [_record_from_dict(item) for item in reg["projects"]]
     return [p for p in out if p.name and p.path]
-
-
-def list_active_projects() -> list[ProjectRecord]:
-    """Return only non-archived projects."""
-    return [p for p in list_projects() if not p.archived]
-
-
-def list_archived_projects() -> list[ProjectRecord]:
-    """Return only archived projects."""
-    return [p for p in list_projects() if p.archived]
 
 
 def get_project(name: str) -> ProjectRecord | None:
@@ -106,23 +97,3 @@ def unregister_project(name: str) -> bool:
     return False
 
 
-def archive_project(name: str) -> bool:
-    """Mark a project as archived. Returns True if found."""
-    reg = load_registry()
-    for item in reg["projects"]:
-        if item.get("name") == name:
-            item["archived"] = True
-            save_registry(reg)
-            return True
-    return False
-
-
-def unarchive_project(name: str) -> bool:
-    """Restore a project from archive. Returns True if found."""
-    reg = load_registry()
-    for item in reg["projects"]:
-        if item.get("name") == name:
-            item["archived"] = False
-            save_registry(reg)
-            return True
-    return False

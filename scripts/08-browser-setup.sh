@@ -14,7 +14,8 @@ set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
 
 REAL_USER="${REAL_USER:-$(logname 2>/dev/null || echo "${SUDO_USER:-$USER}")}"
-REAL_HOME=$(eval echo "~${REAL_USER}")
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+REAL_HOME="${REAL_HOME:-/home/${REAL_USER}}"
 NVME_MOUNT="${NVME_MOUNT:-/mnt/nvme}"
 VENV_DIR="${REAL_HOME}/venvs/arasul"
 BROWSER_CACHE="${NVME_MOUNT}/playwright-browsers"

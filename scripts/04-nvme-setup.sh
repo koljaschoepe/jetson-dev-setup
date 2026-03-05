@@ -153,9 +153,9 @@ log "Weekly TRIM enabled (fstrim.timer)"
 # ---------------------------------------------------------------------------
 HEALTH_CRON="/etc/cron.weekly/nvme-health"
 if [[ ! -f "$HEALTH_CRON" ]]; then
-    cat > "$HEALTH_CRON" << 'EOF'
+    cat > "$HEALTH_CRON" << EOF
 #!/bin/bash
-smartctl -a /dev/nvme0 >> /var/log/jetson-setup/nvme-health.log 2>&1
+smartctl -a ${NVME_DEVICE} >> /var/log/jetson-setup/nvme-health.log 2>&1
 EOF
     chmod +x "$HEALTH_CRON"
     log "Weekly NVMe health check cron installed"
@@ -170,7 +170,7 @@ DOCKER_CRON="/etc/cron.weekly/docker-cleanup"
 if [[ ! -f "$DOCKER_CRON" ]]; then
     cat > "$DOCKER_CRON" << 'EOF'
 #!/bin/bash
-docker system prune -f --volumes 2>/dev/null || true
+docker system prune -f 2>/dev/null || true
 EOF
     chmod +x "$DOCKER_CRON"
     log "Weekly Docker cleanup cron installed"

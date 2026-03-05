@@ -37,7 +37,7 @@ if [[ ! -f "$SSHD_DROPIN" ]]; then
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
-UsePAM no
+UsePAM yes
 X11Forwarding no
 MaxAuthTries 3
 LoginGraceTime 20

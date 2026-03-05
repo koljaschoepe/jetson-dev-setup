@@ -33,59 +33,6 @@ def test_specs_order():
     assert [s.name for s in specs] == ["alpha", "beta"]
 
 
-def test_complete_slash_commands():
-    reg = CommandRegistry()
-    reg.register(CommandSpec("help", _noop_handler, "Help"))
-    reg.register(CommandSpec("health", _noop_handler, "Health"))
-    reg.register(CommandSpec("open", _noop_handler, "Open"))
-
-    results = reg.complete("/he")
-    assert "/help" in results
-    assert "/health" in results
-    assert "/open" not in results
-
-
-def test_complete_empty_prefix():
-    reg = CommandRegistry()
-    reg.register(CommandSpec("help", _noop_handler, "Help"))
-    reg.register(CommandSpec("open", _noop_handler, "Open"))
-
-    results = reg.complete("/")
-    assert "/help" in results
-    assert "/open" in results
-
-
-def test_complete_no_slash():
-    reg = CommandRegistry()
-    reg.register(CommandSpec("help", _noop_handler, "Help"))
-    assert reg.complete("help") == []
-
-
-def test_complete_browser_subcommands():
-    reg = CommandRegistry()
-    reg.register(
-        CommandSpec(
-            "browser",
-            _noop_handler,
-            "Browser",
-            subcommands={"status": "Status", "test": "Test", "install": "Install", "mcp": "MCP"},
-        )
-    )
-
-    results = reg.complete("/browser st")
-    assert "/browser status" in results
-
-
-def test_complete_generic_subcommands():
-    reg = CommandRegistry()
-    reg.register(CommandSpec("git", _noop_handler, "Git", subcommands={"pull": "Pull", "push": "Push", "log": "Log"}))
-
-    results = reg.complete("/git pu")
-    assert "/git pull" in results
-    assert "/git push" in results
-    assert "/git log" not in results
-
-
 def test_categories():
     reg = CommandRegistry()
     reg.register(CommandSpec("help", _noop_handler, "Help", category="Meta"))

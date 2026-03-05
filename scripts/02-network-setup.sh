@@ -71,7 +71,9 @@ fi
 # ---------------------------------------------------------------------------
 # Network info
 # ---------------------------------------------------------------------------
-ETH_IP=$(ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "not connected")
+DEFAULT_IFACE=$(ip route show default 2>/dev/null | awk '/default/{print $5; exit}')
+DEFAULT_IFACE="${DEFAULT_IFACE:-eth0}"
+ETH_IP=$(ip -4 addr show "$DEFAULT_IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "not connected")
 log "Ethernet IP: ${ETH_IP}"
 log "mDNS: ${JETSON_HOSTNAME}.local"
 

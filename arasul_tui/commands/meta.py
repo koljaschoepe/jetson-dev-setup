@@ -61,6 +61,10 @@ def cmd_help(_: TuiState, __: list[str]) -> CommandResult:
     console.print(f"{pad}  [cyan]/mcp[/cyan]           MCP servers", highlight=False)
     console.print()
 
+    console.print(f"{pad}[bold]Network[/bold]", highlight=False)
+    console.print(f"{pad}  [cyan]/tailscale[/cyan]     VPN remote access", highlight=False)
+    console.print()
+
     console.print(f"{pad}  [cyan]/help[/cyan]          This help", highlight=False)
     console.print(f"{pad}  [cyan]/exit[/cyan]          Quit", highlight=False)
     console.print()

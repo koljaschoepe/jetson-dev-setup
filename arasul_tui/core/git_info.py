@@ -8,6 +8,17 @@ from pathlib import Path
 from arasul_tui.core.shell import run_cmd
 
 
+def parse_gh_account(auth_output: str) -> str:
+    """Extract GitHub account name from 'gh auth status' output."""
+    for line in auth_output.splitlines():
+        if "account" in line.lower():
+            parts = line.strip().split()
+            for i, p in enumerate(parts):
+                if p == "account" and i + 1 < len(parts):
+                    return parts[i + 1]
+    return ""
+
+
 @dataclass
 class GitInfo:
     branch: str = ""

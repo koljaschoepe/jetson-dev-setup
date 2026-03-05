@@ -73,7 +73,7 @@ load_config() {
 
     # Derived variables
     REAL_USER="$JETSON_USER"
-    REAL_HOME=$(eval echo "~${REAL_USER}")
+    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 }
 
 # ---------------------------------------------------------------------------
@@ -104,15 +104,16 @@ interactive_config() {
     i_tui="${i_tui:-true}"
 
     cp "${SCRIPT_DIR}/.env.example" "$env_file"
-    sed -i "s/CUSTOMER_NAME=\"CHANGEME\"/CUSTOMER_NAME=\"${i_customer}\"/" "$env_file"
-    sed -i "s/JETSON_USER=\"CHANGEME\"/JETSON_USER=\"${i_user}\"/" "$env_file"
-    sed -i "s/JETSON_HOSTNAME=\"jetson\"/JETSON_HOSTNAME=\"${i_hostname}\"/" "$env_file"
-    sed -i "s/SWAP_SIZE=\"32G\"/SWAP_SIZE=\"${i_swap}\"/" "$env_file"
-    sed -i "s/INSTALL_TAILSCALE=\"false\"/INSTALL_TAILSCALE=\"${i_tailscale}\"/" "$env_file"
-    sed -i "s/GIT_USER_NAME=\"CHANGEME\"/GIT_USER_NAME=\"${i_git_name}\"/" "$env_file"
-    sed -i "s/GIT_USER_EMAIL=\"CHANGEME\"/GIT_USER_EMAIL=\"${i_git_email}\"/" "$env_file"
-    sed -i "s/INSTALL_CLAUDE=\"true\"/INSTALL_CLAUDE=\"${i_claude}\"/" "$env_file"
-    sed -i "s/INSTALL_ARASUL_TUI=\"true\"/INSTALL_ARASUL_TUI=\"${i_tui}\"/" "$env_file"
+    # Use | as sed delimiter to avoid issues with / in user input
+    sed -i "s|CUSTOMER_NAME=\"CHANGEME\"|CUSTOMER_NAME=\"${i_customer//|/}\"|" "$env_file"
+    sed -i "s|JETSON_USER=\"CHANGEME\"|JETSON_USER=\"${i_user//|/}\"|" "$env_file"
+    sed -i "s|JETSON_HOSTNAME=\"jetson\"|JETSON_HOSTNAME=\"${i_hostname//|/}\"|" "$env_file"
+    sed -i "s|SWAP_SIZE=\"32G\"|SWAP_SIZE=\"${i_swap//|/}\"|" "$env_file"
+    sed -i "s|INSTALL_TAILSCALE=\"false\"|INSTALL_TAILSCALE=\"${i_tailscale//|/}\"|" "$env_file"
+    sed -i "s|GIT_USER_NAME=\"CHANGEME\"|GIT_USER_NAME=\"${i_git_name//|/}\"|" "$env_file"
+    sed -i "s|GIT_USER_EMAIL=\"CHANGEME\"|GIT_USER_EMAIL=\"${i_git_email//|/}\"|" "$env_file"
+    sed -i "s|INSTALL_CLAUDE=\"true\"|INSTALL_CLAUDE=\"${i_claude//|/}\"|" "$env_file"
+    sed -i "s|INSTALL_ARASUL_TUI=\"true\"|INSTALL_ARASUL_TUI=\"${i_tui//|/}\"|" "$env_file"
 
     log ".env file created: ${env_file}"
     echo ""
@@ -211,17 +212,17 @@ run_script() {
     export STATIC_IP STATIC_GATEWAY
     export SCRIPT_DIR
 
-    if bash "$script"; then
+    local rc=0
+    bash "$script" || rc=$?
+
+    if [[ $rc -eq 0 ]]; then
         log "Step ${num} completed successfully"
+    elif [[ $rc -eq 2 ]]; then
+        warn "Step ${num} skipped (already configured)"
     else
-        local rc=$?
-        if [[ $rc -eq 2 ]]; then
-            warn "Step ${num} skipped (already configured)"
-        else
-            err "Step ${num} failed (exit code: ${rc})"
-            err "Check logs: ${LOG_DIR}/"
-            exit 1
-        fi
+        err "Step ${num} failed (exit code: ${rc})"
+        err "Check logs: ${LOG_DIR}/"
+        exit 1
     fi
 }
 
@@ -275,7 +276,7 @@ else
     else
         warn "No NVMe device found at ${NVME_DEVICE} — skipping NVMe setup"
         warn "Run later: sudo ./setup.sh --step 4"
-        NVME_MOUNT=""
+        warn "Scripts 5-8 will use fallback paths without NVMe"
     fi
 
     run_script "05" "docker-setup"

@@ -40,23 +40,6 @@ def list_containers(all_containers: bool = False) -> list[Container]:
     return containers
 
 
-def docker_disk_usage() -> list[tuple[str, str]]:
-    """Return Docker disk usage breakdown."""
-    out = run_cmd("docker system df 2>/dev/null", timeout=10)
-    if not out or out.startswith("Error"):
-        return [("Docker", "Not available")]
-
-    rows: list[tuple[str, str]] = []
-    for line in out.splitlines()[1:]:
-        parts = line.split()
-        if len(parts) >= 4:
-            type_name = parts[0]
-            total = parts[1]
-            active = parts[2]
-            size = parts[3]
-            rows.append((type_name, f"{active}/{total} active, {size}"))
-    return rows
-
 
 def docker_running_count() -> int:
     """Return number of running Docker containers."""

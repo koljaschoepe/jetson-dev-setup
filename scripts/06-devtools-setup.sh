@@ -32,8 +32,8 @@ if ! command -v git &>/dev/null; then
 fi
 
 if [[ -n "${GIT_USER_NAME:-}" ]] && [[ "$GIT_USER_NAME" != "CHANGEME" ]]; then
-    run_as_user "git config --global user.name '${GIT_USER_NAME}'"
-    run_as_user "git config --global user.email '${GIT_USER_EMAIL}'"
+    sudo -u "$REAL_USER" -H git config --global user.name "$GIT_USER_NAME"
+    sudo -u "$REAL_USER" -H git config --global user.email "$GIT_USER_EMAIL"
     log "Git configured: ${GIT_USER_NAME} <${GIT_USER_EMAIL}>"
 else
     warn "Git user.name not set — configure manually:"

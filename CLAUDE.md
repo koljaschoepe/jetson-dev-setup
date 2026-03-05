@@ -49,7 +49,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
 ├── arasul_tui/
 │   ├── app.py          # TUI application (two-level navigation)
 │   ├── install.sh      # Installer (venv + launcher)
-│   ├── commands/       # Command handlers (8 modules)
+│   ├── commands/       # Command handlers (9 modules)
 │   │   ├── __init__.py      # Re-exports all handlers
 │   │   ├── project.py       # /open, /create, /clone, /delete, /info, /repos
 │   │   ├── ai.py            # /claude, /auth
@@ -58,16 +58,17 @@ Scripts read variables via exported environment variables from `setup.sh`.
 │   │   ├── git_ops.py       # /git (pull/push/log/status + setup wizard)
 │   │   ├── browser_cmd.py   # /browser (status/test/install/mcp)
 │   │   ├── mcp.py           # /mcp (list/add/test/remove)
+│   │   ├── tailscale_cmd.py # /tailscale (status/install/up/down)
 │   │   └── meta.py          # /help, /exit
 │   └── core/
 │       ├── auth.py          # Claude OAuth token management
 │       ├── browser.py       # Playwright/headless browser management
 │       ├── constants.py     # Shared constants (CLAUDE_JSON path)
-│       ├── docker_info.py   # Docker container listing + disk usage
+│       ├── docker_info.py   # Docker container listing
 │       ├── git_info.py      # Git metadata (branch, dirty, language detection)
 │       ├── projects.py      # YAML project registry CRUD
 │       ├── registry.py      # Command registry (with categories + subcommands)
-│       ├── router.py        # Command routing and dispatch (20 commands)
+│       ├── router.py        # Command routing and dispatch (21 commands)
 │       ├── security.py      # SSH keys, login history, security audit
 │       ├── setup_wizard.py  # Setup step definitions + runner
 │       ├── shell.py         # Subprocess helper (run_cmd)
@@ -111,7 +112,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
   - `./arasul_tui/install.sh`
   - Start with `arasul` or alias `atui`
 - Two-level navigation: Main Screen → Project Screen
-- 20 slash commands across 7 categories:
+- 21 slash commands across 8 categories:
   - **Projects:** `/open`, `/create`, `/clone`, `/delete`, `/info`, `/repos`
   - **Claude Code:** `/claude`, `/auth`
   - **Git:** `/git` (no args = setup wizard), `/git pull`, `/git push`, `/git log`, `/git status`
@@ -119,6 +120,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
   - **Security:** `/keys`, `/logins`, `/security`
   - **Browser:** `/browser status|test|install|mcp`
   - **MCP:** `/mcp list|add|test|remove`
+  - **Network:** `/tailscale status|install|up|down`
   - **Meta:** `/help`, `/exit`
 - Keyboard shortcuts: `1-9` (select project), `n` (new), `d` (delete), `c` (Claude), `g` (lazygit), `b` (back)
 

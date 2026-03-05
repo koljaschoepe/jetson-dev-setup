@@ -5,6 +5,7 @@ import shutil
 
 from arasul_tui.core.auth import TOKEN_PREFIX, is_claude_configured, save_claude_auth
 from arasul_tui.core.browser import ensure_browser
+from arasul_tui.core.git_info import parse_gh_account
 from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
@@ -272,16 +273,7 @@ def cmd_auth(state: TuiState, _: list[str]) -> CommandResult:
     # GitHub
     gh_auth = run_cmd("gh auth status 2>&1", timeout=5)
     if "Logged in" in gh_auth:
-        # Extract account name
-        account = ""
-        for line in gh_auth.splitlines():
-            if "account" in line.lower():
-                parts = line.strip().split()
-                for i, p in enumerate(parts):
-                    if p == "account" and i + 1 < len(parts):
-                        account = parts[i + 1]
-                        break
-                break
+        account = parse_gh_account(gh_auth)
         rows.append(("GitHub", f"[green]✓[/green] {account}" if account else "[green]✓[/green] connected"))
     else:
         rows.append(("GitHub", "[dim]not connected[/dim] — run [bold]/git[/bold]"))

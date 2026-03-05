@@ -19,10 +19,12 @@ else
 fi
 
 TMUX_CONF="${REAL_HOME}/.tmux.conf"
-if [[ -f "${SCRIPT_DIR}/config/tmux.conf" ]]; then
+if [[ -f "${SCRIPT_DIR}/config/tmux.conf" ]] && [[ ! -f "$TMUX_CONF" ]]; then
     cp "${SCRIPT_DIR}/config/tmux.conf" "$TMUX_CONF"
     chown "${REAL_USER}:${REAL_USER}" "$TMUX_CONF"
     log "tmux configuration installed"
+else
+    skip "tmux config already exists"
 fi
 
 # tmux Plugin Manager
@@ -36,14 +38,12 @@ fi
 # Shell aliases
 # ---------------------------------------------------------------------------
 ALIASES_FILE="${REAL_HOME}/.bash_aliases"
-if [[ -f "${SCRIPT_DIR}/config/bash_aliases" ]]; then
+if [[ -f "${SCRIPT_DIR}/config/bash_aliases" ]] && [[ ! -f "$ALIASES_FILE" ]]; then
     cp "${SCRIPT_DIR}/config/bash_aliases" "$ALIASES_FILE"
     chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
     log "Shell aliases installed"
-elif ! grep -q "jetson-dev" "$ALIASES_FILE" 2>/dev/null; then
-    cat "${SCRIPT_DIR}/config/bash_aliases" >> "$ALIASES_FILE" 2>/dev/null || true
-    chown "${REAL_USER}:${REAL_USER}" "$ALIASES_FILE"
-    log "Shell aliases installed"
+else
+    skip "Shell aliases already exist"
 fi
 
 # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ if ! grep -q "ARASUL_SHELL_ACTIVE" "$BASHRC" 2>/dev/null; then
 # Auto-start Arasul Shell on interactive SSH login
 if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && command -v arasul &>/dev/null; then
     export ARASUL_SHELL_ACTIVE=1
-    exec arasul
+    arasul || true
 fi
 AUTOSTART
     chown "${REAL_USER}:${REAL_USER}" "$BASHRC"

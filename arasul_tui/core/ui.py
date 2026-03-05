@@ -69,13 +69,10 @@ def _github_status() -> str:
     auth = cached_cmd("gh auth status 2>&1", timeout=4, ttl=120)
     if "Logged in" not in auth:
         return "[dim]not connected[/dim]"
-    for line in auth.splitlines():
-        if "account" in line.lower():
-            parts = line.strip().split()
-            for i, p in enumerate(parts):
-                if p == "account" and i + 1 < len(parts):
-                    return f"[cyan]✓[/cyan] {parts[i + 1]}"
-    return "[cyan]✓[/cyan]"
+    from arasul_tui.core.git_info import parse_gh_account
+
+    account = parse_gh_account(auth)
+    return f"[cyan]✓[/cyan] {account}" if account else "[cyan]✓[/cyan]"
 
 
 def get_default_interface() -> str:
@@ -83,13 +80,6 @@ def get_default_interface() -> str:
     iface = cached_cmd("ip route show default 2>/dev/null | awk '/default/{print $5}'")
     return iface or "eth0"
 
-
-def _gpu_usage() -> str:
-    """Get GPU utilization percentage."""
-    gpu = cached_cmd("cat /sys/devices/gpu.0/load 2>/dev/null", ttl=10)
-    if gpu and gpu.isdigit():
-        return f"{int(gpu) // 10}%"
-    return ""
 
 
 def _system_info() -> dict[str, str]:
@@ -391,142 +381,7 @@ def print_header(state: TuiState, full: bool = True) -> None:
         _print_header_compact(state)
 
 
-def print_project_menu(state: TuiState) -> None:
-    """Show action menu after selecting a project (legacy, used as fallback)."""
-    pad = content_pad()
-    name = state.active_project.name if state.active_project else "?"
-    gi = _git_info_short(state.active_project)
-    title_parts = [f"[bold]{name}[/bold]"]
-    if gi:
-        title_parts.append(gi)
-    title = " [dim]·[/dim] ".join(title_parts)
 
-    console.print()
-    console.print(f"{pad}[dim]{title}[/dim]", highlight=False)
-    console.print()
-    console.print(f"{pad}[bold cyan]\\[c][/bold cyan]  Start Claude Code", highlight=False)
-    console.print(f"{pad}[bold cyan]\\[g][/bold cyan]  Start lazygit", highlight=False)
-    console.print(f"{pad}[bold cyan]\\[b][/bold cyan]  Back to overview", highlight=False)
-    console.print()
-
-
-def _project_info_rows(project: Path, git: Any) -> list[tuple[str, str]]:
-    """Build key-value rows for project info."""
-    from arasul_tui.core.git_info import detect_language, get_disk_usage, get_readme_headline
-
-    rows: list[tuple[str, str]] = []
-    if git:
-        branch_str = git.branch or "detached"
-        if git.is_dirty:
-            branch_str += " [yellow]*[/yellow]"
-        rows.append(("Branch", branch_str))
-        rows.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[cyan]clean[/cyan]"))
-        if git.short_hash:
-            msg = git.commit_message[:35] if git.commit_message else ""
-            rows.append(("Commit", f"{git.short_hash} {msg}"))
-        if git.commit_time:
-            rows.append(("Time", git.commit_time))
-    else:
-        rows.append(("Git", "[dim]not a git repo[/dim]"))
-
-    headline = get_readme_headline(project)
-    if headline:
-        rows.append(("About", headline[:35]))
-    disk = get_disk_usage(project)
-    if disk:
-        rows.append(("Disk", disk))
-    lang = detect_language(project)
-    if lang:
-        rows.append(("Lang", lang))
-    rows.append(("Path", f"[dim]{project}[/dim]"))
-    return rows
-
-
-def _print_project_full(state: TuiState) -> None:
-    """Full project screen: frameless with project info."""
-    from arasul_tui.core.git_info import get_git_info
-
-    project = state.active_project
-    name = project.name
-    git = get_git_info(project)
-
-    pad = content_pad()
-    sep = f"[dim]{'─' * _sep_width()}[/dim]"
-
-    console.print()
-    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
-    console.print(f"{pad}{sep}", highlight=False)
-    console.print()
-
-    for k, v in _project_info_rows(project, git):
-        if k:
-            console.print(f"{pad}  [bold]{k:<8}[/bold] {v}", highlight=False)
-
-    console.print()
-    console.print(f"{pad}{sep}", highlight=False)
-    console.print(f"{pad}  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
-    console.print()
-
-
-def _print_project_medium(state: TuiState) -> None:
-    """Medium project screen: frameless, compact."""
-    from arasul_tui.core.git_info import get_git_info
-
-    project = state.active_project
-    name = project.name
-    git = get_git_info(project)
-
-    pad = content_pad()
-    sep = f"[dim]{'─' * _sep_width()}[/dim]"
-
-    console.print()
-    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
-    console.print(f"{pad}{sep}", highlight=False)
-    console.print()
-
-    for k, v in _project_info_rows(project, git):
-        if k:
-            console.print(f"{pad}  [bold]{k}[/bold]  {v}", highlight=False)
-
-    console.print()
-    console.print(f"{pad}{sep}", highlight=False)
-    console.print(f"{pad}  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
-    console.print()
-
-
-def _print_project_compact(state: TuiState) -> None:
-    """Compact project screen: minimal."""
-    from arasul_tui.core.git_info import get_git_info
-
-    project = state.active_project
-    name = project.name
-    git = get_git_info(project)
-
-    pad = " " * _frame_left_pad()
-    console.print()
-    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
-    w = min(console.width - 2, 40)
-    console.print(f"{pad}[dim]{'─' * w}[/dim]", highlight=False)
-    if git:
-        branch_str = git.branch or "detached"
-        if git.is_dirty:
-            branch_str += " [yellow]*[/yellow]"
-        console.print(f"{pad}Branch: {branch_str}", highlight=False)
-    console.print(f"{pad}[cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
-    console.print()
-
-
-def print_project_screen(state: TuiState) -> None:
-    """Show the project screen with git info and shortcuts (three-tier responsive)."""
-    if not state.active_project:
-        return
-
-    if console.width >= TIER_FULL:
-        _print_project_full(state)
-    elif console.width >= TIER_MEDIUM:
-        _print_project_medium(state)
-    else:
-        _print_project_compact(state)
 
 
 def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:

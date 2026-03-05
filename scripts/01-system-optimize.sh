@@ -120,7 +120,7 @@ net.ipv4.conf.all.send_redirects=0
 net.ipv4.conf.default.send_redirects=0
 
 # Process and kernel hardening
-kernel.yama.ptrace_scope=2
+kernel.yama.ptrace_scope=1
 kernel.kptr_restrict=2
 kernel.dmesg_restrict=1
 EOF

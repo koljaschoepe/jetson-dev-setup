@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from arasul_tui.core.docker_info import Container, docker_disk_usage, docker_running_count, list_containers
+from arasul_tui.core.docker_info import Container, docker_running_count, list_containers
 
 
 def test_container_dataclass():
@@ -24,12 +24,6 @@ def test_list_containers_with_output():
     assert len(result) == 1
     assert result[0].name == "myapp"
     assert result[0].image == "nginx:latest"
-
-
-def test_docker_disk_usage_unavailable():
-    with patch("arasul_tui.core.docker_info.run_cmd", return_value="Error: docker not found"):
-        result = docker_disk_usage()
-    assert result == [("Docker", "Not available")]
 
 
 def test_docker_running_count_zero():

@@ -50,9 +50,6 @@ class SlashCompleter(Completer):
                     )
             return
 
-        if not parts:
-            return
-
         cmd = parts[0]
 
         # Generic subcommand completion
@@ -74,7 +71,7 @@ class SlashCompleter(Completer):
 
         # /open <name> completion
         if cmd == "open":
-            names = REGISTRY._project_names()
+            names = project_list()
             pref = ""
             if len(parts) >= 2 and not has_trailing_space:
                 pref = parts[1]

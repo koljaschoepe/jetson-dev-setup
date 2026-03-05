@@ -52,7 +52,8 @@ else
     warn "NVMe not mounted — Docker data stays on SD card"
 fi
 
-cat > "$DAEMON_JSON" << EOF
+if [[ ! -f "$DAEMON_JSON" ]] || ! grep -q "nvidia-container-runtime" "$DAEMON_JSON" 2>/dev/null; then
+    cat > "$DAEMON_JSON" << EOF
 {
     "runtimes": {
         "nvidia": {
@@ -74,8 +75,10 @@ cat > "$DAEMON_JSON" << EOF
     ]
 }
 EOF
-
-log "Docker daemon configured (data-root: ${DATA_ROOT})"
+    log "Docker daemon configured (data-root: ${DATA_ROOT})"
+else
+    skip "Docker daemon.json already configured"
+fi
 
 # ---------------------------------------------------------------------------
 # Pin Docker version (prevent auto-upgrade to 28.x)

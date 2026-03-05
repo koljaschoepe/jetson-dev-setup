@@ -85,7 +85,7 @@ def _write_token(token: str) -> None:
         rc_text += f"\n{export_line}\n"
 
     BASHRC.write_text(rc_text, encoding="utf-8")
-    BASHRC.chmod(0o600)
+    BASHRC.chmod(0o644)
 
 
 def _has_account() -> bool:

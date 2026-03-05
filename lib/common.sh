@@ -21,8 +21,9 @@ info() { echo -e "${CYAN}[i]${NC} $*"; }
 step() { echo -e "\n${BLUE}═══════════════════════════════════════════════${NC}"; echo -e "${BLUE}  $*${NC}"; echo -e "${BLUE}═══════════════════════════════════════════════${NC}\n"; }
 
 # Run a command as the non-root user
+# Usage: run_as_user "command with args" (passed as single string to bash -c)
 run_as_user() {
-    sudo -u "$REAL_USER" -H bash -c "$*"
+    sudo -u "$REAL_USER" -H -- bash -c "$1"
 }
 
 # Check if running as root
