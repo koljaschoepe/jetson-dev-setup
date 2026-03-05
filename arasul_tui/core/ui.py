@@ -294,9 +294,8 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
 
 
 def _sep_width() -> int:
-    """Separator width: fits terminal without wrapping."""
-    pad_w = _frame_left_pad() + 3
-    return max(20, min(console.width - pad_w - 2, MAX_WIDTH - 6))
+    """Separator width: just wide enough to cover content + small margin."""
+    return 50
 
 
 def _print_header_full(state: TuiState) -> None:
@@ -308,16 +307,13 @@ def _print_header_full(state: TuiState) -> None:
     sep = f"[dim]{'─' * sep_w}[/dim]"
 
     logo_lines = list(LOGO_LARGE)
-    logo_w = max(len(ln) for ln in logo_lines)
 
     console.print()
 
-    # Logo with blue gradient
+    # Logo with blue gradient (left-aligned)
     for i, line in enumerate(logo_lines):
-        left_pad = max(0, (content_w - logo_w) // 2)
-        padded = " " * left_pad + line
         color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
-        console.print(f"{pad}[bold {color}]{padded}[/bold {color}]", highlight=False)
+        console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
 
     console.print(f"{pad}{sep}", highlight=False)
 
