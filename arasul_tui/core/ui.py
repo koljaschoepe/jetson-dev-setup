@@ -34,7 +34,7 @@ except PackageNotFoundError:
 MAX_WIDTH = 84
 MIN_WIDTH = 50
 
-TIER_FULL = 80
+TIER_FULL = 78
 TIER_MEDIUM = 60
 
 _LOGO_COLORS = [
@@ -313,42 +313,18 @@ def _print_header_full(state: TuiState) -> None:
 
 
 def _print_header_medium(state: TuiState) -> None:
-    """Medium header: frameless, compact dashboard, no logo."""
+    """Medium header: same content as full, but text title instead of ASCII logo."""
+    content_w = min(console.width - 6, MAX_WIDTH - 6)
     pad = content_pad()
-    w = min(console.width - 6, 56)
-    sep = f"[dim]{'─' * w}[/dim]"
+    sep = f"[dim]{'─' * content_w}[/dim]"
 
     console.print()
-    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", highlight=False)
+    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan]", highlight=False)
     console.print(f"{pad}{sep}", highlight=False)
-    console.print()
 
-    info = _system_info()
-    bar_w = 8
-    ram_pct = float(info.get("ram_pct", 0))
-    disk_pct = float(info.get("disk_pct", 0))
-    console.print(f"{pad}  RAM {_bar(ram_pct, bar_w)} [dim]{info['ram']}[/dim]", highlight=False)
-    console.print(f"{pad}  Disk {_bar(disk_pct, bar_w)} [dim]{info['disk']}[/dim]", highlight=False)
-    console.print()
-    console.print()
-
-    console.print(f"{pad}  [bold]Projects[/bold]", highlight=False)
-    console.print()
-    projects = project_list()
-    for i, name in enumerate(projects, 1):
-        branch, commit_time, is_dirty = _project_detail(name)
-        detail_parts: list[str] = []
-        if branch:
-            b = f"[dim]{branch}[/dim]"
-            if is_dirty:
-                b += "[yellow]*[/yellow]"
-            detail_parts.append(b)
-        if commit_time:
-            detail_parts.append(f"[dim]{commit_time}[/dim]")
-        detail = "  ".join(detail_parts) if detail_parts else "[dim]local[/dim]"
-        console.print(f"{pad}  [cyan]{i}[/cyan]  {name}  {detail}", highlight=False)
-    if not projects:
-        console.print(f"{pad}  [dim]No projects yet[/dim]", highlight=False)
+    dashboard = _build_full_dashboard(state, content_w)
+    for line in dashboard:
+        console.print(f"{pad}{line}", highlight=False)
     console.print()
 
 
