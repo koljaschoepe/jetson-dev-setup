@@ -24,8 +24,6 @@ if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
     from arasul_tui.core.types import CommandResult
 
-_LOGO_COLORS = ["#00d4aa", "#1dc4b8", "#3ab4c6", "#57a4d4", "#7494e2", "#9184f0", "#7c8aff"]
-
 console = Console()
 
 try:
@@ -191,7 +189,7 @@ def _pad_right(s: str, target: int) -> str:
 
 
 def _bar(pct: float, width: int = 10) -> str:
-    """Render a data bar like ████░░░░ with color based on percentage."""
+    """Render a thin data bar like [━━━─────] with color based on percentage."""
     filled = int(round(pct / 100 * width))
     empty = width - filled
     if pct >= 90:
@@ -200,7 +198,9 @@ def _bar(pct: float, width: int = 10) -> str:
         color = "yellow"
     else:
         color = "green"
-    return f"[{color}]{'█' * filled}[/{color}][dim]{'░' * empty}[/dim]"
+    bar_filled = f"[{color}]{'━' * filled}[/{color}]"
+    bar_empty = f"[dim]{'─' * empty}[/dim]"
+    return f"[dim][[/dim]{bar_filled}{bar_empty}[dim]][/dim]"
 
 
 def _build_dashboard(state: TuiState, content_w: int) -> list[str]:
@@ -286,26 +286,25 @@ def _print_header_full(state: TuiState) -> None:
     dashboard = _build_dashboard(state, content_w)
 
     frame: list[str] = []
-    frame.append(f"[cyan]╭{bar}╮[/cyan]")
+    frame.append(f"[dim]╭{bar}╮[/dim]")
 
-    # Logo with per-line gradient colors
-    for i, line in enumerate(logo_lines):
+    # Logo in uniform cyan
+    for line in logo_lines:
         left_pad = (content_w - logo_w) // 2
         padded = " " * left_pad + line.ljust(logo_w)
         padded = padded.ljust(content_w)
-        color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
-        frame.append(f"[cyan]│[/cyan]  [bold {color}]{padded}[/bold {color}]  [cyan]│[/cyan]")
+        frame.append(f"[dim]│[/dim]  [bold cyan]{padded}[/bold cyan]  [dim]│[/dim]")
     # Version right-aligned
     ver_line = _pad_right(f"{'':>{content_w - len(VERSION)}}{VERSION}", content_w)
-    frame.append(f"[cyan]│[/cyan]  [dim]{ver_line}[/dim]  [cyan]│[/cyan]")
+    frame.append(f"[dim]│[/dim]  [dim]{ver_line}[/dim]  [dim]│[/dim]")
 
-    frame.append(f"[cyan]│[/cyan]  [dim]{'─' * content_w}[/dim]  [cyan]│[/cyan]")
+    frame.append(f"[dim]│[/dim]  [dim]{'─' * content_w}[/dim]  [dim]│[/dim]")
 
     # Dashboard content
     for line in dashboard:
-        frame.append(f"[cyan]│[/cyan]  {_pad_right(line, content_w)}  [cyan]│[/cyan]")
+        frame.append(f"[dim]│[/dim]  {_pad_right(line, content_w)}  [dim]│[/dim]")
 
-    frame.append(f"[cyan]╰{bar}╯[/cyan]")
+    frame.append(f"[dim]╰{bar}╯[/dim]")
 
     pad = " " * _frame_left_pad()
     console.print()
@@ -321,10 +320,10 @@ def _print_header_medium(state: TuiState) -> None:
     sep = "─" * w
 
     console.print()
-    console.print(f"{pad}[cyan]╭{sep}╮[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]╭{sep}╮[/dim]", highlight=False)
     title = _pad_right(f"  [bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", w)
-    console.print(f"{pad}[cyan]│[/cyan]{title}[cyan]│[/cyan]", highlight=False)
-    console.print(f"{pad}[cyan]├{sep}┤[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]│[/dim]{title}[dim]│[/dim]", highlight=False)
+    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
 
     info = _system_info()
     bar_w = 8
@@ -332,10 +331,10 @@ def _print_header_medium(state: TuiState) -> None:
     disk_pct = float(info.get("disk_pct", 0))
     line1 = _pad_right(f"  RAM {_bar(ram_pct, bar_w)} [dim]{info['ram']}[/dim]", w)
     line2 = _pad_right(f"  Disk {_bar(disk_pct, bar_w)} [dim]{info['disk']}[/dim]", w)
-    console.print(f"{pad}[cyan]│[/cyan]{line1}[cyan]│[/cyan]", highlight=False)
-    console.print(f"{pad}[cyan]│[/cyan]{line2}[cyan]│[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]│[/dim]{line1}[dim]│[/dim]", highlight=False)
+    console.print(f"{pad}[dim]│[/dim]{line2}[dim]│[/dim]", highlight=False)
 
-    console.print(f"{pad}[cyan]├{sep}┤[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
 
     projects = project_list()
     for i, name in enumerate(projects, 1):
@@ -350,12 +349,12 @@ def _print_header_medium(state: TuiState) -> None:
             detail_parts.append(f"[dim]{commit_time}[/dim]")
         detail = "  ".join(detail_parts) if detail_parts else "[dim]local[/dim]"
         pline = _pad_right(f"  [cyan]{i}[/cyan]  {name}  {detail}", w)
-        console.print(f"{pad}[cyan]│[/cyan]{pline}[cyan]│[/cyan]", highlight=False)
+        console.print(f"{pad}[dim]│[/dim]{pline}[dim]│[/dim]", highlight=False)
     if not projects:
         pline = _pad_right("  [dim]No projects yet[/dim]", w)
-        console.print(f"{pad}[cyan]│[/cyan]{pline}[cyan]│[/cyan]", highlight=False)
+        console.print(f"{pad}[dim]│[/dim]{pline}[dim]│[/dim]", highlight=False)
 
-    console.print(f"{pad}[cyan]╰{sep}╯[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]╰{sep}╯[/dim]", highlight=False)
     console.print()
 
 
@@ -473,19 +472,19 @@ def _print_project_full(state: TuiState) -> None:
     bar = "─" * (w - 2)
 
     frame: list[str] = []
-    frame.append(f"[cyan]╭{bar}╮[/cyan]")
-    frame.append(f"[cyan]│[/cyan]  [bold]{_pad_right(name, content_w)}[/bold]  [cyan]│[/cyan]")
-    frame.append(f"[cyan]├{'─' * (w - 2)}┤[/cyan]")
+    frame.append(f"[dim]╭{bar}╮[/dim]")
+    frame.append(f"[dim]│[/dim]  [bold]{_pad_right(name, content_w)}[/bold]  [dim]│[/dim]")
+    frame.append(f"[dim]├{'─' * (w - 2)}┤[/dim]")
 
     for k, v in _project_info_rows(project, git):
         line = f"  [bold]{k:<8}[/bold] {v}" if k else ""
-        frame.append(f"[cyan]│[/cyan]  {_pad_right(line, content_w)}  [cyan]│[/cyan]")
+        frame.append(f"[dim]│[/dim]  {_pad_right(line, content_w)}  [dim]│[/dim]")
 
-    frame.append(f"[cyan]├{'─' * (w - 2)}┤[/cyan]")
+    frame.append(f"[dim]├{'─' * (w - 2)}┤[/dim]")
 
     shortcuts = "  [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back"
-    frame.append(f"[cyan]│[/cyan]  {_pad_right(shortcuts, content_w)}  [cyan]│[/cyan]")
-    frame.append(f"[cyan]╰{bar}╯[/cyan]")
+    frame.append(f"[dim]│[/dim]  {_pad_right(shortcuts, content_w)}  [dim]│[/dim]")
+    frame.append(f"[dim]╰{bar}╯[/dim]")
 
     pad = " " * _frame_left_pad()
     console.print()
@@ -507,19 +506,19 @@ def _print_project_medium(state: TuiState) -> None:
     sep = "─" * w
 
     console.print()
-    console.print(f"{pad}[cyan]╭{sep}╮[/cyan]", highlight=False)
-    console.print(f"{pad}[cyan]│[/cyan] [bold]{_pad_right(name, w - 1)}[/bold][cyan]│[/cyan]", highlight=False)
-    console.print(f"{pad}[cyan]├{sep}┤[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]╭{sep}╮[/dim]", highlight=False)
+    console.print(f"{pad}[dim]│[/dim] [bold]{_pad_right(name, w - 1)}[/bold][dim]│[/dim]", highlight=False)
+    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
 
     for k, v in _project_info_rows(project, git):
         if k:
             line = _pad_right(f" [bold]{k}[/bold]  {v}", w)
-            console.print(f"{pad}[cyan]│[/cyan]{line}[cyan]│[/cyan]", highlight=False)
+            console.print(f"{pad}[dim]│[/dim]{line}[dim]│[/dim]", highlight=False)
 
-    console.print(f"{pad}[cyan]├{sep}┤[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]├{sep}┤[/dim]", highlight=False)
     sc = _pad_right(" [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", w)
-    console.print(f"{pad}[cyan]│[/cyan]{sc}[cyan]│[/cyan]", highlight=False)
-    console.print(f"{pad}[cyan]╰{sep}╯[/cyan]", highlight=False)
+    console.print(f"{pad}[dim]│[/dim]{sc}[dim]│[/dim]", highlight=False)
+    console.print(f"{pad}[dim]╰{sep}╯[/dim]", highlight=False)
     console.print()
 
 
@@ -567,7 +566,7 @@ def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
     table.add_column()
     for k, v in rows:
         table.add_row(k, v)
-    p = Panel(table, title=f"[bold]{title}[/bold]", border_style="cyan", box=box.ROUNDED, padding=(0, 1), width=w)
+    p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
     console.print(f"{lpad}", end="", highlight=False)
     console.print(p, highlight=False)
 
@@ -622,7 +621,7 @@ def print_result(result: CommandResult) -> None:
     elif style == "panel":
         text = "\n".join(result.lines)
         w = _adaptive_width() - 4
-        p = Panel(text, border_style="cyan", box=box.ROUNDED, padding=(0, 2), width=w)
+        p = Panel(text, border_style="dim", box=box.ROUNDED, padding=(0, 2), width=w)
         lpad = " " * _frame_left_pad()
         console.print(f"{lpad}  ", end="", highlight=False)
         console.print(p, highlight=False)
@@ -683,7 +682,7 @@ def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
     for k, v in data:
         table.add_row(k, v)
     if title:
-        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="cyan", box=box.ROUNDED, padding=(0, 1), width=w)
+        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
         console.print(f"{lpad}", end="", highlight=False)
         console.print(p, highlight=False)
     else:
