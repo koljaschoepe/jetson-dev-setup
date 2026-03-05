@@ -80,9 +80,11 @@ def test_parse_error_unmatched_quote(state: TuiState):
     assert result.ok is False
 
 
-def test_prefix_suggestion(state: TuiState):
+def test_prefix_auto_execute(state: TuiState):
+    """Unique prefix in slash mode auto-executes the matching command."""
     result = run_command(state, "/hel")
-    assert result.ok is False
+    assert result.ok is True
+    assert result.style == "silent"  # help returns silent
 
 
 def test_registry_categories():

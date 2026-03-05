@@ -53,3 +53,78 @@ def test_category_field():
 def test_subcommands_field():
     spec = CommandSpec("git", _noop_handler, "Git", subcommands={"pull": "Pull", "push": "Push"})
     assert spec.subcommands == {"pull": "Pull", "push": "Push"}
+
+
+def test_resolve_exact_name():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("status", _noop_handler, "Status"))
+    spec, args = reg.resolve("status")
+    assert spec is not None
+    assert spec.name == "status"
+    assert args == []
+
+
+def test_resolve_with_args():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("open", _noop_handler, "Open"))
+    spec, args = reg.resolve("open myproject")
+    assert spec is not None
+    assert spec.name == "open"
+    assert args == ["myproject"]
+
+
+def test_resolve_alias():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("create", _noop_handler, "Create", aliases=["new", "new project"]))
+    spec, args = reg.resolve("new")
+    assert spec is not None
+    assert spec.name == "create"
+
+    spec2, args2 = reg.resolve("new project")
+    assert spec2 is not None
+    assert spec2.name == "create"
+    assert args2 == []
+
+
+def test_resolve_subcommand_alias():
+    reg = CommandRegistry()
+    reg.register(CommandSpec(
+        "git", _noop_handler, "Git",
+        aliases=["pull", "push"],
+        subcommands={"pull": "Pull", "push": "Push"},
+    ))
+    spec, args = reg.resolve("pull")
+    assert spec is not None
+    assert spec.name == "git"
+    assert args == ["pull"]
+
+
+def test_resolve_prefix():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("status", _noop_handler, "Status"))
+    reg.register(CommandSpec("setup", _noop_handler, "Setup"))
+
+    # "stat" is unique prefix
+    spec, _ = reg.resolve("stat")
+    assert spec is not None
+    assert spec.name == "status"
+
+    # "setu" is unique prefix
+    spec2, _ = reg.resolve("setu")
+    assert spec2 is not None
+    assert spec2.name == "setup"
+
+
+def test_resolve_no_match():
+    reg = CommandRegistry()
+    reg.register(CommandSpec("status", _noop_handler, "Status"))
+    spec, _ = reg.resolve("nonsense")
+    assert spec is None
+
+
+def test_resolve_single_char_no_fuzzy():
+    """Single characters should not fuzzy-match to avoid false positives."""
+    reg = CommandRegistry()
+    reg.register(CommandSpec("open", _noop_handler, "Open"))
+    spec, _ = reg.resolve("n")
+    assert spec is None

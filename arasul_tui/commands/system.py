@@ -232,11 +232,13 @@ def cmd_docker(state: TuiState, _: list[str]) -> CommandResult:
         print_info("No Docker containers found.")
         return CommandResult(ok=True, style="silent")
 
+    from arasul_tui.core.theme import ICON_DOT_OFF, ICON_DOT_ON
+
     rows: list[tuple[str, str]] = []
     for c in containers:
         status = c.status
-        icon = "[green]●[/green]" if "Up" in status else "[dim]○[/dim]"
-        rows.append((f"{icon} {c.name}", f"{c.image} — {status}"))
+        icon = ICON_DOT_ON if "Up" in status else ICON_DOT_OFF
+        rows.append((f"{icon} {c.name}", f"{c.image} \u2014 {status}"))
 
     print_styled_panel("Docker Containers", rows)
     return CommandResult(ok=True, style="silent")

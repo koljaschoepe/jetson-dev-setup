@@ -27,12 +27,59 @@ from arasul_tui.core.ui import (
 )
 
 
-class SlashCompleter(Completer):
+def _suggest_alternatives(command: str) -> None:
+    """Show helpful suggestions when a command isn't recognized."""
+    q = command.lower()
+    suggestions: list[str] = []
+
+    # Check for close matches in command names
+    for spec in REGISTRY.specs():
+        name = spec.name
+        # Levenshtein-like: allow 1-2 char difference for short names
+        if len(q) >= 3 and (q in name or name in q):
+            suggestions.append(name)
+            continue
+        # Check prefix overlap (at least 2 chars matching)
+        common = 0
+        for a, b in zip(q, name, strict=False):
+            if a == b:
+                common += 1
+            else:
+                break
+        if common >= 2 and len(q) <= len(name) + 2:
+            suggestions.append(name)
+            continue
+        # Check aliases
+        for alias in spec.aliases:
+            if q in alias or alias in q:
+                suggestions.append(name)
+                break
+
+    if suggestions:
+        unique = list(dict.fromkeys(suggestions))[:3]
+        hint = ", ".join(f"[bold]{s}[/bold]" for s in unique)
+        print_warning(f"I don't know '[bold]{command}[/bold]'. Did you mean: {hint}?")
+    else:
+        print_warning(f"I don't know '[bold]{command}[/bold]'. Try [bold]help[/bold] to see what I can do.")
+
+
+class SmartCompleter(Completer):
+    """Completer that works with both slash commands and natural language."""
+
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor.lstrip()
-        if not text.startswith("/"):
+        if not text:
             return
 
+        # Slash command mode
+        if text.startswith("/"):
+            yield from self._slash_completions(text)
+            return
+
+        # Natural language mode — complete command names + aliases
+        yield from self._natural_completions(text)
+
+    def _slash_completions(self, text: str):
         body = text[1:]
         parts = body.split()
         has_trailing_space = body.endswith(" ")
@@ -52,7 +99,7 @@ class SlashCompleter(Completer):
 
         cmd = parts[0]
 
-        # Generic subcommand completion
+        # Subcommand completion
         spec = REGISTRY.get(cmd)
         if spec and spec.subcommands:
             pref = ""
@@ -84,6 +131,42 @@ class SlashCompleter(Completer):
                         display=HTML(f"<b>/open</b> {name}"),
                         display_meta="Open project",
                     )
+
+    def _natural_completions(self, text: str):
+        q = text.lower()
+
+        # Command names
+        for spec in REGISTRY.specs():
+            if spec.name.startswith(q) or q in spec.name:
+                yield Completion(
+                    spec.name,
+                    start_position=-len(text),
+                    display=HTML(f"<b>{spec.name}</b>"),
+                    display_meta=spec.help_text,
+                )
+
+        # Aliases (only if no command name matched the prefix)
+        seen = set()
+        for spec in REGISTRY.specs():
+            for alias in spec.aliases:
+                if alias.startswith(q) and alias not in seen:
+                    seen.add(alias)
+                    yield Completion(
+                        alias,
+                        start_position=-len(text),
+                        display=HTML(f"{alias}"),
+                        display_meta=f"{spec.help_text}",
+                    )
+
+        # Project names
+        for name in project_list():
+            if name.lower().startswith(q) or q in name.lower():
+                yield Completion(
+                    name,
+                    start_position=-len(text),
+                    display=HTML(f"<b>{name}</b>"),
+                    display_meta="Open project",
+                )
 
 
 def _handle_number(state: TuiState, num: int) -> bool:
@@ -148,7 +231,7 @@ def run() -> None:
     )
     session: PromptSession[str] = PromptSession(
         history=history,
-        completer=SlashCompleter(),
+        completer=SmartCompleter(),
         complete_while_typing=True,
         style=prompt_style,
     )
@@ -221,10 +304,7 @@ def run() -> None:
         if command.isdigit():
             num = int(command)
             if _handle_number(state, num):
-                from arasul_tui.core.ui import print_success
-
-                print_success(f"Opened [bold]{state.active_project.name}[/bold]")
-                print_header(state, full=False)
+                print_header(state, full=True)
                 continue
             else:
                 print_warning(f"No project with number [bold]{num}[/bold].")
@@ -269,42 +349,44 @@ def run() -> None:
                 launch_request = ("claude", state.active_project)
                 break
 
-        # --- Fuzzy project search (non-slash, non-shortcut text) ---
-        if not command.startswith("/"):
-            projects = project_list()
-            matches = _fuzzy_match(command, projects)
-            if len(matches) == 1:
-                target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
-                if target.exists() and target.is_dir():
-                    state.active_project = target
-                    state.screen = Screen.PROJECT
-                    from arasul_tui.core.ui import print_success
-
-                    print_success(f"Opened [bold]{matches[0]}[/bold]")
-                    print_header(state, full=False)
-                    continue
-            elif len(matches) > 1:
-                from arasul_tui.core.ui import print_info as _pi
-
-                _pi(f"[bold]{len(matches)}[/bold] matches for [dim]{command}[/dim]:")
-                pad = content_pad()
-                for i, m in enumerate(matches[:5], 1):
-                    console.print(f"{pad}  [cyan]{i}[/cyan]  {m}", highlight=False)
-                continue
-
-            # Fall through to slash command handler
+        # --- Slash commands (direct) ---
+        if command.startswith("/"):
             result = run_command(state, command)
             _handle_result(result)
             if result.quit_app:
                 break
             continue
 
-        # --- Slash commands ---
-        result = run_command(state, command)
-        _handle_result(result)
+        # --- Natural language: try command resolve first, then project fuzzy ---
+        spec, args = REGISTRY.resolve(command)
+        if spec:
+            result = spec.handler(state, args)
+            _handle_result(result)
+            if result.quit_app:
+                break
+            continue
 
-        if result.quit_app:
-            break
+        # --- Fuzzy project search ---
+        projects = project_list()
+        matches = _fuzzy_match(command, projects)
+        if len(matches) == 1:
+            target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
+            if target.exists() and target.is_dir():
+                state.active_project = target
+                state.screen = Screen.PROJECT
+                print_header(state, full=True)
+                continue
+        elif len(matches) > 1:
+            from arasul_tui.core.ui import print_info as _pi
+
+            _pi(f"[bold]{len(matches)}[/bold] matches for [dim]{command}[/dim]:")
+            pad = content_pad()
+            for i, m in enumerate(matches[:5], 1):
+                console.print(f"{pad}  [cyan]{i}[/cyan]  {m}", highlight=False)
+            continue
+
+        # --- Nothing matched — suggest closest commands ---
+        _suggest_alternatives(command)
 
     if launch_request:
         cmd, cwd = launch_request

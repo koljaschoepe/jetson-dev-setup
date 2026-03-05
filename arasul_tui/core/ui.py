@@ -19,6 +19,21 @@ from rich.text import Text
 
 from arasul_tui.core.cache import cached_cmd, parallel_cmds
 from arasul_tui.core.shell import run_cmd
+from arasul_tui.core.theme import (
+    BAR_EMPTY,
+    BAR_FILLED,
+    DIM,
+    ERROR,
+    ICON_ARROW,
+    ICON_DOT_OFF,
+    ICON_FAIL,
+    ICON_OK,
+    ICON_WARN,
+    LOGO_GRADIENT,
+    PRIMARY,
+    SUCCESS,
+    WARNING,
+)
 
 if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
@@ -37,32 +52,48 @@ MIN_WIDTH = 50
 TIER_FULL = 78
 TIER_MEDIUM = 60
 
-_LOGO_COLORS = [
-    "#00d4ff",
-    "#10c0ff",
-    "#20acff",
-    "#3098ff",
-    "#4088ff",
-    "#4c7cff",
-    "#5870ff",
-]
+# Box-drawing and separator characters (pre-built to avoid backslashes in f-strings)
+_HLINE = "\u2500"  # ─
+_DOT = "\u00b7"    # ·
+_DEG = "\u00b0"    # °
+_CHECK = "\u2713"  # ✓
 
 LOGO_LARGE = [
-    " ████  █████   ████   ████  ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██     ██  ██ ██",
-    "██████ █████  ██████  ████  ██  ██ ██",
-    "██  ██ ██ ██  ██  ██     ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██  ████   ████  ██████",
+    "  \u2584\u2580\u2588 \u2588\u2580\u2588 \u2584\u2580\u2588 \u2588\u2580\u2580 \u2588 \u2588 \u2588  ",
+    "  \u2588\u2580\u2588 \u2588\u2580\u2584 \u2588\u2580\u2588 \u2584\u2588 \u2588\u2584\u2588 \u2588\u2584\u2584",
 ]
 
 LOGO_COMPACT = [
-    " ██  ███   ██  ███  █  █ █",
-    "█  █ █  █ █  █ █    █  █ █",
-    "████ ███  ████  ██  █  █ █",
-    "█  █ █ █  █  █ ███   ██  ████",
+    "  \u2584\u2580\u2588 \u2588\u2580\u2588 \u2584\u2580\u2588 \u2588\u2580\u2580 \u2588 \u2588 \u2588  ",
+    "  \u2588\u2580\u2588 \u2588\u2580\u2584 \u2588\u2580\u2588 \u2584\u2588 \u2588\u2584\u2588 \u2588\u2584\u2584",
 ]
+
+
+def _hline(n: int) -> str:
+    """Return n horizontal line characters."""
+    return _HLINE * n
+
+
+def _dim_hline(n: int) -> str:
+    """Return n dim horizontal line characters with Rich markup."""
+    return f"[{DIM}]{_hline(n)}[/{DIM}]"
+
+
+def _greeting(user: str) -> str:
+    """Time-aware greeting for the user."""
+    import datetime
+
+    hour = datetime.datetime.now().hour
+    name = user.capitalize()
+    if hour < 6:
+        return f"Still up, {name}?"
+    if hour < 12:
+        return f"Good morning, {name}."
+    if hour < 17:
+        return f"Good afternoon, {name}."
+    if hour < 22:
+        return f"Good evening, {name}."
+    return f"Late session, {name}."
 
 
 def _github_status() -> str:
@@ -72,14 +103,13 @@ def _github_status() -> str:
     from arasul_tui.core.git_info import parse_gh_account
 
     account = parse_gh_account(auth)
-    return f"[cyan]✓[/cyan] {account}" if account else "[cyan]✓[/cyan]"
+    return f"[cyan]{_CHECK}[/cyan] {account}" if account else f"[cyan]{_CHECK}[/cyan]"
 
 
 def get_default_interface() -> str:
     """Detect primary network interface dynamically."""
     iface = cached_cmd("ip route show default 2>/dev/null | awk '/default/{print $5}'")
     return iface or "eth0"
-
 
 
 def _system_info() -> dict[str, str]:
@@ -175,7 +205,7 @@ def _git_info_short(project: Path | None) -> str:
     host = "github" if "github" in url else "git"
     branch = run_cmd(f"git -C {quoted} symbolic-ref --short HEAD 2>/dev/null")
     if branch:
-        return f"[dim]{host} · {branch}[/dim]"
+        return f"[dim]{host} {_DOT} {branch}[/dim]"
     return f"[dim]{host}[/dim]"
 
 
@@ -196,65 +226,86 @@ def _pad_right(s: str, target: int) -> str:
 
 
 def _bar(pct: float, width: int = 10) -> str:
-    """Render a thin data bar like [━━━─────] with color based on percentage."""
+    """Render a modern block bar like ▰▰▰▱▱▱▱▱ with color based on percentage."""
     filled = int(round(pct / 100 * width))
     empty = width - filled
     if pct >= 90:
-        color = "red"
+        color = ERROR
     elif pct >= 70:
-        color = "yellow"
+        color = WARNING
     else:
-        color = "cyan"
-    bar_filled = f"[{color}]{'━' * filled}[/{color}]"
-    bar_empty = f"[dim]{'─' * empty}[/dim]"
-    return f"[dim][[/dim]{bar_filled}{bar_empty}[dim]][/dim]"
+        color = PRIMARY
+    bar_filled = f"[{color}]{BAR_FILLED * filled}[/{color}]"
+    bar_empty = f"[{DIM}]{BAR_EMPTY * empty}[/{DIM}]"
+    return f"{bar_filled}{bar_empty}"
 
 
 def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
-    """Build the complete dashboard: status, metrics, projects."""
+    """Build the complete dashboard: greeting, system box, projects."""
     info = _system_info()
     lines: list[str] = []
+    dot_sep = f" {_DOT} "
 
-    # --- Status (two lines with spacing) ---
+    # --- Greeting ---
     lines.append("")
-    line1_parts: list[str] = [f"[dim]{VERSION}[/dim]"]
+    lines.append(f"  {_greeting(state.user)}")
+
+    # --- Status subtitle ---
+    status_parts: list[str] = [VERSION]
     power = info.get("power", "")
     if power:
-        line1_parts.append(f"[dim]{power}[/dim]")
+        status_parts.append(power)
     ip = info.get("ip", "")
     if ip and ip != "n/a":
-        line1_parts.append(f"[dim]{ip}[/dim]")
-    lines.append("  " + "  [dim]·[/dim]  ".join(line1_parts))
+        status_parts.append(ip)
+    joined = dot_sep.join(status_parts)
+    lines.append(f"  [{DIM}]{joined}[/{DIM}]")
     lines.append("")
 
-    line2_parts: list[str] = []
-    docker = info.get("docker", "0")
-    if docker and docker != "0":
-        line2_parts.append(f"[dim]Docker: {docker}[/dim]")
-    gh = _github_status()
-    line2_parts.append(f"GitHub: {gh}")
-    lines.append("  " + "  [dim]·[/dim]  ".join(line2_parts))
-    lines.append("")
+    # --- System box ---
+    box_w = min(content_w - 2, 46)
+    bar_w = max(8, min(10, box_w // 5))
+    _corner_tl = "\u256d"  # ╭
+    _corner_tr = "\u256e"  # ╮
+    _corner_bl = "\u2570"  # ╰
+    _corner_br = "\u256f"  # ╯
+    _vline = "\u2502"      # │
 
-    # --- System metrics with data bars ---
-    bar_w = max(8, min(12, content_w // 6))
-    label_w = 6
+    box_top = f"  [{DIM}]{_corner_tl}{_hline(box_w)}{_corner_tr}[/{DIM}]"
+    box_bot = f"  [{DIM}]{_corner_bl}{_hline(box_w)}{_corner_br}[/{DIM}]"
+    lines.append(box_top)
+
+    # System metrics inside box
+    def _box_row(label: str, bar: str, detail: str) -> str:
+        return f"  [{DIM}]{_vline}[/{DIM}]  {label:<5}{bar}  [{DIM}]{detail}[/{DIM}]"
 
     ram_raw = info.get("ram_pct", 0)
     ram_pct = float(ram_raw) if isinstance(ram_raw, (int, float)) else 0.0
-    lines.append(f"  {'RAM':<{label_w}}{_bar(ram_pct, bar_w)}  [dim]{info['ram']}[/dim]")
+    lines.append(_box_row("RAM", _bar(ram_pct, bar_w), info["ram"]))
 
     disk_raw = info.get("disk_pct", 0)
     disk_pct = float(disk_raw) if isinstance(disk_raw, (int, float)) else 0.0
-    lines.append(f"  {'Disk':<{label_w}}{_bar(disk_pct, bar_w)}  [dim]{info['disk']}[/dim]")
+    lines.append(_box_row("Disk", _bar(disk_pct, bar_w), info["disk"]))
 
     temp = info.get("temp", 0)
     temp_pct = min(100, max(0, (temp - 20) * 100 // 80)) if temp else 0
     if temp:
-        lines.append(f"  {'Temp':<{label_w}}{_bar(temp_pct, bar_w)}  [dim]{temp}°C[/dim]")
+        lines.append(_box_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
 
     gpu_pct = info.get("gpu_pct", 0)
-    lines.append(f"  {'GPU':<{label_w}}{_bar(gpu_pct, bar_w)}  [dim]{gpu_pct}%[/dim]")
+    lines.append(_box_row("GPU", _bar(gpu_pct, bar_w), f"{gpu_pct}%"))
+
+    # Status row inside box
+    svc_parts: list[str] = []
+    gh = _github_status()
+    svc_parts.append(f"GitHub: {gh}")
+    docker = info.get("docker", "0")
+    if docker and docker != "0":
+        svc_parts.append(f"Docker: {docker}")
+    svc_line = dot_sep.join(svc_parts)
+    lines.append(f"  [{DIM}]{_vline}[/{DIM}]  [{DIM}]{svc_line}[/{DIM}]")
+
+    lines.append(box_bot)
 
     # --- Projects ---
     lines.append("")
@@ -266,21 +317,21 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
         branch, commit_time, is_dirty = _project_detail(name)
         parts: list[str] = []
         if branch:
-            branch_str = f"[dim]{branch}[/dim]"
+            branch_str = f"[{DIM}]{branch}[/{DIM}]"
             if is_dirty:
-                parts.append(f"{branch_str} [yellow]*[/yellow]")
+                parts.append(f"{branch_str} [{WARNING}]*[/{WARNING}]")
             else:
-                parts.append(f"{branch_str} [cyan]✓[/cyan]")
+                parts.append(f"{branch_str} [{SUCCESS}]{_CHECK}[/{SUCCESS}]")
         if commit_time:
-            parts.append(f"[dim]{commit_time}[/dim]")
-        detail = "  ".join(parts) if parts else "[dim]local[/dim]"
-        lines.append(f"  [cyan]{i}[/cyan]  {name}  {detail}")
+            parts.append(f"[{DIM}]{commit_time}[/{DIM}]")
+        detail = "  ".join(parts) if parts else f"[{DIM}]local[/{DIM}]"
+        lines.append(f"  [{PRIMARY}]{i}[/{PRIMARY}]  {name}  {detail}")
 
     if not projects:
-        lines.append("  [dim]No projects yet[/dim]")
+        lines.append(f"  [{DIM}]No projects yet. Type 'new' to create one.[/{DIM}]")
 
     lines.append("")
-    lines.append("  [dim]/help · /create · /status · /setup[/dim]")
+    lines.append(f"  [{DIM}]Type a command or project name. Try 'help'.[/{DIM}]")
 
     return lines
 
@@ -291,23 +342,25 @@ def _sep_width() -> int:
 
 
 def _print_header_full(state: TuiState) -> None:
-    """Full dashboard: frameless layout with gradient logo."""
+    """Full dashboard: frameless layout with gradient logo and boot animation."""
     w = _adaptive_width()
     content_w = w - 6
     pad = content_pad()
-    sep_w = _sep_width()
-    sep = f"[dim]{'─' * sep_w}[/dim]"
-
-    logo_lines = list(LOGO_LARGE)
+    sep = _dim_hline(_sep_width())
 
     console.print()
 
-    # Logo with blue gradient (left-aligned)
-    for i, line in enumerate(logo_lines):
-        color = _LOGO_COLORS[i % len(_LOGO_COLORS)]
+    # Logo with boot animation on first run
+    animate = state.first_run
+    for i, line in enumerate(LOGO_LARGE):
+        color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
         console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
+        if animate:
+            time.sleep(0.06)
 
     console.print(f"{pad}{sep}", highlight=False)
+    if animate:
+        time.sleep(0.04)
 
     dashboard = _build_full_dashboard(state, content_w)
     for line in dashboard:
@@ -316,13 +369,15 @@ def _print_header_full(state: TuiState) -> None:
 
 
 def _print_header_medium(state: TuiState) -> None:
-    """Medium header: same content as full, but text title instead of ASCII logo."""
+    """Medium header: compact logo + full dashboard."""
     content_w = min(console.width - 6, MAX_WIDTH - 6)
     pad = content_pad()
-    sep = f"[dim]{'─' * _sep_width()}[/dim]"
+    sep = _dim_hline(_sep_width())
 
     console.print()
-    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan]", highlight=False)
+    for i, line in enumerate(LOGO_COMPACT):
+        color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
+        console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
     console.print(f"{pad}{sep}", highlight=False)
 
     dashboard = _build_full_dashboard(state, content_w)
@@ -335,17 +390,75 @@ def _print_header_compact(state: TuiState) -> None:
     """Compact header: text-only with mini bars."""
     pad = " " * _frame_left_pad()
     console.print()
-    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", highlight=False)
+    console.print(f"{pad}[bold {PRIMARY}]ARASUL[/bold {PRIMARY}] [{DIM}]{VERSION}[/{DIM}]", highlight=False)
     w = min(console.width - 2, 40)
-    console.print(f"{pad}[dim]{'─' * w}[/dim]", highlight=False)
+    console.print(f"{pad}{_dim_hline(w)}", highlight=False)
     info = _system_info()
     ram_pct = float(info.get("ram_pct", 0))
     disk_pct = float(info.get("disk_pct", 0))
-    console.print(f"{pad}RAM {_bar(ram_pct, 6)} [dim]{info['ram']}[/dim]", highlight=False)
-    console.print(f"{pad}Disk {_bar(disk_pct, 6)} [dim]{info['disk']}[/dim]", highlight=False)
+    console.print(f"{pad}RAM {_bar(ram_pct, 6)} [{DIM}]{info['ram']}[/{DIM}]", highlight=False)
+    console.print(f"{pad}Disk {_bar(disk_pct, 6)} [{DIM}]{info['disk']}[/{DIM}]", highlight=False)
     projects = project_list()
     if projects:
         console.print(f"{pad}Projects: {len(projects)}", highlight=False)
+    console.print()
+
+
+def _print_project_screen(state: TuiState) -> None:
+    """Dedicated project mini-dashboard when a project is open."""
+    project = state.active_project
+    if not project:
+        return
+
+    pad = content_pad()
+    name = project.name
+    sep = _dim_hline(_sep_width())
+
+    console.print()
+    console.print(f"{pad}[bold {PRIMARY}]{name}[/bold {PRIMARY}]", highlight=False)
+    console.print(f"{pad}{sep}", highlight=False)
+
+    from arasul_tui.core.git_info import detect_language, get_disk_usage, get_git_info
+
+    gi = get_git_info(project)
+    lang = detect_language(project)
+    disk = get_disk_usage(project)
+
+    # Git info
+    if gi:
+        branch_color = WARNING if gi.is_dirty else SUCCESS
+        dirty_mark = f" [{WARNING}]*[/{WARNING}]" if gi.is_dirty else ""
+        console.print(
+            f"{pad}  [{branch_color}]{gi.branch}[/{branch_color}]{dirty_mark}"
+            f"  [{DIM}]{gi.short_hash}[/{DIM}]",
+            highlight=False,
+        )
+        if gi.commit_message:
+            console.print(
+                f"{pad}  [{DIM}]{gi.commit_message}  {_DOT}  {gi.commit_time}[/{DIM}]",
+                highlight=False,
+            )
+    else:
+        console.print(f"{pad}  [{DIM}]no git[/{DIM}]", highlight=False)
+
+    # Language + disk
+    detail_parts: list[str] = []
+    if lang:
+        detail_parts.append(lang)
+    if disk:
+        detail_parts.append(disk)
+    if detail_parts:
+        detail_line = f"  {_DOT}  ".join(detail_parts)
+        console.print(f"{pad}  [{DIM}]{detail_line}[/{DIM}]", highlight=False)
+
+    # Shortcuts
+    console.print()
+    console.print(
+        f"{pad}  [{DIM}][{PRIMARY}]c[/{PRIMARY}] Claude  "
+        f"[{PRIMARY}]g[/{PRIMARY}] lazygit  "
+        f"[{PRIMARY}]b[/{PRIMARY}] back[/{DIM}]",
+        highlight=False,
+    )
     console.print()
 
 
@@ -363,14 +476,23 @@ def print_header(state: TuiState, full: bool = True) -> None:
             if gi:
                 parts.append(gi)
         else:
-            parts.append("[dim]main[/dim]")
-        title_len = _vis_len(" [dim]·[/dim] ".join(parts)) + 2
+            parts.append(f"[{DIM}]main[/{DIM}]")
+        dot_sep = f" [{DIM}]{_DOT}[/{DIM}] "
+        title_len = _vis_len(dot_sep.join(parts)) + 2
         side = max(1, (w - title_len) // 2)
         right_side = max(1, w - title_len - side)
+        left = _dim_hline(side)
+        right = _dim_hline(right_side)
+        joined = dot_sep.join(parts)
         console.print(
-            f"{pad}[dim]{'─' * side}[/dim] {' [dim]·[/dim] '.join(parts)} [dim]{'─' * right_side}[/dim]",
+            f"{pad}{left} {joined} {right}",
             highlight=False,
         )
+        return
+
+    # Project screen: show project mini-dashboard
+    if state.active_project:
+        _print_project_screen(state)
         return
 
     if console.width >= TIER_FULL:
@@ -379,9 +501,6 @@ def print_header(state: TuiState, full: bool = True) -> None:
         _print_header_medium(state)
     else:
         _print_header_compact(state)
-
-
-
 
 
 def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
@@ -401,16 +520,17 @@ def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
 def print_checklist(title: str, items: list[tuple[str, str, str]]) -> None:
     """Print a color-coded checklist. Items: (label, detail, status: ok/warn/fail)."""
     pad = content_pad()
+    hline6 = _hline(6)
     console.print()
-    console.print(f"{pad}[bold]────── {title} ──────[/bold]", highlight=False)
+    console.print(f"{pad}[bold]{hline6} {title} {hline6}[/bold]", highlight=False)
     console.print()
     for label, detail, status in items:
         if status == "ok":
-            icon = "[green]✓[/green]"
+            icon = ICON_OK
         elif status == "warn":
-            icon = "[yellow]~[/yellow]"
+            icon = ICON_WARN
         else:
-            icon = "[red]✗[/red]"
+            icon = ICON_FAIL
         console.print(f"{pad}   {icon}  [bold]{label}[/bold]       {detail}", highlight=False)
     console.print()
 
@@ -422,9 +542,9 @@ def print_progress(title: str, items: list[tuple[str, bool]]) -> None:
     console.print(f"{pad}[bold]{title}[/bold]", highlight=False)
     console.print()
     for label, done in items:
-        icon = "[green]✓[/green]" if done else "[dim]○[/dim]"
-        style = "" if done else "[dim]"
-        end_style = "" if done else "[/dim]"
+        icon = ICON_OK if done else ICON_DOT_OFF
+        style = "" if done else f"[{DIM}]"
+        end_style = "" if done else f"[/{DIM}]"
         console.print(f"{pad}   {icon}  {style}{label}{end_style}", highlight=False)
     console.print()
 
@@ -441,10 +561,10 @@ def print_result(result: CommandResult) -> None:
 
     if style == "success":
         for line in result.lines:
-            console.print(f"{pad}[green]{line}[/green]", highlight=False)
+            console.print(f"{pad}[{SUCCESS}]{line}[/{SUCCESS}]", highlight=False)
     elif style == "error":
         for line in result.lines:
-            console.print(f"{pad}[red]{line}[/red]", highlight=False)
+            console.print(f"{pad}[{ERROR}]{line}[/{ERROR}]", highlight=False)
     elif style == "panel":
         text = "\n".join(result.lines)
         w = _adaptive_width() - 4
@@ -459,7 +579,7 @@ def print_result(result: CommandResult) -> None:
         ok = result.ok
         for line in result.lines:
             if not ok and line and not line.startswith(" "):
-                console.print(f"{pad}[red]{line}[/red]", highlight=False)
+                console.print(f"{pad}[{ERROR}]{line}[/{ERROR}]", highlight=False)
             else:
                 console.print(f"{pad}{line}", highlight=False)
 
@@ -467,14 +587,16 @@ def print_result(result: CommandResult) -> None:
 def print_step(current: int, total: int, title: str) -> None:
     pad = content_pad()
     w = _adaptive_width() - 6
-    title_plain = f" {title} · Step {current}/{total} "
+    title_plain = f" {title} {_DOT} Step {current}/{total} "
     side = max(1, (w - len(title_plain)) // 2)
     right = max(1, w - len(title_plain) - side)
+    left_line = _hline(side)
+    right_line = _hline(right)
     console.print()
     console.print(
-        f"{pad}[cyan]{'─' * side}[/cyan]"
-        f" [bold]{title}[/bold] [dim]· Step {current}/{total}[/dim] "
-        f"[cyan]{'─' * right}[/cyan]",
+        f"{pad}[{PRIMARY}]{left_line}[/{PRIMARY}]"
+        f" [bold]{title}[/bold] [{DIM}]{_DOT} Step {current}/{total}[/{DIM}] "
+        f"[{PRIMARY}]{right_line}[/{PRIMARY}]",
         highlight=False,
     )
     console.print()
@@ -482,22 +604,22 @@ def print_step(current: int, total: int, title: str) -> None:
 
 def print_success(msg: str) -> None:
     pad = content_pad()
-    console.print(f"{pad}[green]✓[/green] {msg}", highlight=False)
+    console.print(f"{pad}{ICON_OK} {msg}", highlight=False)
 
 
 def print_error(msg: str) -> None:
     pad = content_pad()
-    console.print(f"{pad}[red]✗[/red] {msg}", highlight=False)
+    console.print(f"{pad}{ICON_FAIL} {msg}", highlight=False)
 
 
 def print_info(msg: str) -> None:
     pad = content_pad()
-    console.print(f"{pad}[cyan]→[/cyan] {msg}", highlight=False)
+    console.print(f"{pad}{ICON_ARROW} {msg}", highlight=False)
 
 
 def print_warning(msg: str) -> None:
     pad = content_pad()
-    console.print(f"{pad}[yellow]![/yellow] {msg}", highlight=False)
+    console.print(f"{pad}[{WARNING}]![/{WARNING}] {msg}", highlight=False)
 
 
 def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
@@ -531,7 +653,7 @@ def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
     t = threading.Thread(target=_worker)
     t.start()
 
-    sp = Spinner("dots", text=f"{content_pad()}{msg}", style="cyan")
+    sp = Spinner("dots", text=f"{content_pad()}{msg}", style=PRIMARY)
     with Live(sp, console=console, refresh_per_second=10, transient=True):
         while t.is_alive():
             time.sleep(0.1)
@@ -551,10 +673,10 @@ def content_pad() -> str:
     return " " * (_frame_left_pad() + 3)
 
 
-def print_separator() -> None:
-    """Print a thin separator line."""
+def print_separator(state: TuiState | None = None) -> None:
+    """Print a thin separator line with optional contextual hint."""
     pad = " " * _frame_left_pad()
-    console.print(f"{pad}[dim]{'─' * _sep_width()}[/dim]", highlight=False)
+    console.print(f"{pad}{_dim_hline(_sep_width())}", highlight=False)
 
 
 def build_prompt(state: TuiState, wizard_step: tuple[int, int, str] | None = None) -> str:
