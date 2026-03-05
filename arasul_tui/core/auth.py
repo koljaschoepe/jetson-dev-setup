@@ -69,6 +69,7 @@ def _write_token(token: str) -> None:
         text += f"\n{export_line}\n"
 
     PROFILE.write_text(text, encoding="utf-8")
+    PROFILE.chmod(0o600)
 
     # Also write to .bashrc for interactive shell convenience
     try:
@@ -84,6 +85,7 @@ def _write_token(token: str) -> None:
         rc_text += f"\n{export_line}\n"
 
     BASHRC.write_text(rc_text, encoding="utf-8")
+    BASHRC.chmod(0o600)
 
 
 def _has_account() -> bool:
@@ -111,3 +113,4 @@ def _write_account(account_uuid: str, email: str) -> None:
         json.dumps(data, indent=2) + "\n",
         encoding="utf-8",
     )
+    CLAUDE_JSON.chmod(0o600)

@@ -59,6 +59,9 @@ def cmd_open(state: TuiState, args: list[str]) -> CommandResult:
 
     name = args[0]
     target = (root / name).resolve()
+    if not target.is_relative_to(root.resolve()):
+        print_error("Path outside project root is not allowed.")
+        return CommandResult(ok=False, style="silent")
     if not target.exists() or not target.is_dir():
         print_error(f"Project not found: [bold]{name}[/bold]")
         return CommandResult(ok=False, style="silent")
@@ -73,14 +76,17 @@ def cmd_open(state: TuiState, args: list[str]) -> CommandResult:
 
 def _create_finish(state: TuiState, user_input: str) -> CommandResult:
     name = user_input.strip().replace(" ", "-")
-    if not name:
-        print_error("Project name must not be empty.")
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        print_error("Invalid project name.")
         return CommandResult(ok=False, style="silent")
     root = _project_root(state)
     if not root:
         print_error(f"Project root not writable: {state.project_root}")
         return CommandResult(ok=False, style="silent")
-    target = root / name
+    target = (root / name).resolve()
+    if not target.is_relative_to(root.resolve()):
+        print_error("Path outside project root is not allowed.")
+        return CommandResult(ok=False, style="silent")
     if target.exists():
         print_error(f"Project already exists: {target}")
         return CommandResult(ok=False, style="silent")
@@ -121,8 +127,8 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
         return CommandResult(ok=False, style="silent")
 
     repo_name = url.rstrip("/").split("/")[-1].removesuffix(".git")
-    if not repo_name:
-        print_error("Could not derive repo name from URL.")
+    if not repo_name or "/" in repo_name or "\\" in repo_name or repo_name.startswith("."):
+        print_error("Could not derive a safe repo name from URL.")
         return CommandResult(ok=False, style="silent")
 
     root = _project_root(state)
@@ -130,7 +136,10 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
         print_error(f"Project root not writable: {state.project_root}")
         return CommandResult(ok=False, style="silent")
 
-    target = root / repo_name
+    target = (root / repo_name).resolve()
+    if not target.is_relative_to(root.resolve()):
+        print_error("Path outside project root is not allowed.")
+        return CommandResult(ok=False, style="silent")
     if target.exists():
         print_error(f"Directory already exists: [bold]{repo_name}[/bold]")
         return CommandResult(ok=False, style="silent")

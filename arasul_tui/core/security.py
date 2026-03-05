@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def list_ssh_keys() -> list[SSHKey]:
             key_type = parts[0] if parts else "unknown"
             comment = parts[2] if len(parts) > 2 else ""
 
-            fp_out = run_cmd(f"ssh-keygen -lf {pub}")
+            fp_out = run_cmd(f"ssh-keygen -lf {shlex.quote(str(pub))}")
             bits = ""
             fingerprint = ""
             if fp_out and not fp_out.startswith("Error"):
@@ -61,14 +62,15 @@ def list_ssh_keys() -> list[SSHKey]:
 
 def recent_logins(count: int = 10) -> list[str]:
     """Return recent SSH login lines from last/journalctl."""
-    out = run_cmd(f"last -n {count} -a 2>/dev/null", timeout=5)
+    n = max(1, min(count, 100))
+    out = run_cmd(f"last -n {n} -a 2>/dev/null", timeout=5)
     if out and not out.startswith("Error"):
         lines = [line for line in out.splitlines() if line.strip() and not line.startswith("wtmp")]
-        return lines[:count]
+        return lines[:n]
 
-    out = run_cmd(f"journalctl -u sshd -n {count} --no-pager 2>/dev/null", timeout=5)
+    out = run_cmd(f"journalctl -u sshd -n {n} --no-pager 2>/dev/null", timeout=5)
     if out and not out.startswith("Error"):
-        return out.splitlines()[:count]
+        return out.splitlines()[:n]
 
     return ["Login history not available"]
 

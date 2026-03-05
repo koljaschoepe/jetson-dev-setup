@@ -249,8 +249,9 @@ def _git_wizard_ssh_key(state: TuiState, user_input: str) -> CommandResult:
         hostname = socket.gethostname()
 
         def _do_add() -> str:
+            title = shlex.quote(f"arasul@{hostname}")
             return run_cmd(
-                f'gh ssh-key add ~/.ssh/id_ed25519.pub --title "arasul@{hostname}"',
+                f"gh ssh-key add ~/.ssh/id_ed25519.pub --title {title}",
                 timeout=10,
             )
 
