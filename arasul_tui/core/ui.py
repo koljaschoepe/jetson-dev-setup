@@ -30,16 +30,17 @@ except PackageNotFoundError:
     VERSION = "v0.2.0"
 
 MAX_WIDTH = 84
-MIN_WIDTH = 72
+MIN_WIDTH = 50
 
-ARASUL_TEXT = [
-    " ████  █████   ████   ████  ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██     ██  ██ ██",
-    "██████ █████  ██████  ████  ██  ██ ██",
-    "██  ██ ██ ██  ██  ██     ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██",
-    "██  ██ ██  ██ ██  ██  ████   ████  ██████",
+TIER_FULL = 80
+TIER_MEDIUM = 60
+
+LOGO_LARGE = [
+    " ##  ###   ##  ###  #  # #   ",
+    "#  # #  # #  # #    #  # #   ",
+    "#### ###  #### ###  #  # #   ",
+    "#  # # #  #  #   #  #  # #   ",
+    "#  # #  # #  # ###   ##  ####",
 ]
 
 
@@ -160,7 +161,7 @@ def _git_info_short(project: Path | None) -> str:
 
 def _adaptive_width() -> int:
     """Calculate optimal panel width based on terminal size with margins."""
-    return max(MIN_WIDTH, min(console.width - 4, MAX_WIDTH))
+    return max(MIN_WIDTH, min(console.width - 2, MAX_WIDTH))
 
 
 def _vis_len(s: str) -> int:
@@ -175,42 +176,114 @@ def _pad_right(s: str, target: int) -> str:
 
 
 def _build_logo_lines() -> list[str]:
-    """Build centered ARASUL text block with version."""
-    lines = list(ARASUL_TEXT)
-    text_w = max(len(line) for line in ARASUL_TEXT)
-    lines.append(f"{VERSION:>{text_w}}")
+    """Build ARASUL ASCII logo with version."""
+    lines = list(LOGO_LARGE)
+    logo_w = max(len(ln) for ln in LOGO_LARGE)
+    lines.append(f"{VERSION:>{logo_w}}")
     return lines
 
 
 def _build_info_lines(state: TuiState, content_w: int) -> list[str]:
-    """Build two-column layout: system info (left) + projects (right)."""
-    left = list(_system_info())
-    left.append(f"GitHub: {_github_status()}")
-
-    right = ["[bold]Projects[/bold]"]
+    """Build single-column stacked layout: system info, projects, shortcuts."""
+    lines: list[str] = []
+    for sl in _system_info():
+        lines.append(sl)
+    lines.append(f"GitHub: {_github_status()}")
+    lines.append("")
+    lines.append("[bold]Projects[/bold]")
     projects = project_list()
     for i, name in enumerate(projects, 1):
         detail = _project_detail(name)
-        right.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
+        lines.append(f" [cyan]{i}[/cyan]  {name}  {detail}")
     if not projects:
-        right.append(" [dim]No projects[/dim]")
-    right.append("")
-    right.append(" [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete")
-    right.append("")
-    right.append(" [dim]/status  /help  /setup[/dim]")
+        lines.append(" [dim]No projects[/dim]")
+    lines.append("")
+    lines.append(" [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete")
+    lines.append("")
+    lines.append(" [dim]/status  /help  /setup[/dim]")
+    return lines
 
-    left_w = (content_w - 3) // 2
-    right_w = content_w - 3 - left_w
 
-    max_h = max(len(left), len(right))
-    top_pad = (max_h - len(left)) // 2
-    left = [""] * top_pad + left + [""] * (max_h - len(left) - top_pad)
-    right += [""] * (max_h - len(right))
+def _print_header_full(state: TuiState) -> None:
+    """Full header: ornate double-border frame + ASCII logo + single-column info."""
+    w = _adaptive_width()
+    content_w = w - 8
+    bar = "═" * (w - 6)
+    sep = "─" * content_w
 
-    return [
-        f"{_pad_right(left_col, left_w)} [dim]│[/dim] {_pad_right(right_col, right_w)}"
-        for left_col, right_col in zip(left, right, strict=False)
-    ]
+    logo_lines = _build_logo_lines()
+    info_lines = _build_info_lines(state, content_w)
+
+    frame: list[str] = []
+    frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
+    frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
+
+    logo_w = max(len(ln) for ln in logo_lines)
+    for line in logo_lines:
+        left_pad = (content_w - logo_w) // 2
+        padded = " " * left_pad + line.ljust(logo_w)
+        padded = padded.ljust(content_w)
+        frame.append(f"[cyan]║[/cyan]   [bold cyan]{padded}[/bold cyan]   [cyan]║[/cyan]")
+
+    frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
+
+    for line in info_lines:
+        frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
+
+    frame.append(f"[cyan]║ ╔{bar}╗ ║[/cyan]")
+    frame.append(f"[cyan]╚═╩{bar}╩═╝[/cyan]")
+
+    pad = " " * _frame_left_pad()
+    console.print()
+    for line in frame:
+        console.print(f"{pad}{line}", highlight=False)
+    console.print()
+
+
+def _print_header_medium(state: TuiState) -> None:
+    """Medium header: thin separators + bold text header + single-column info."""
+    w = min(console.width - 2, 60)
+    pad = " " * _frame_left_pad()
+    sep = "─" * w
+
+    console.print()
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+    console.print(f"{pad}[bold cyan] ARASUL[/bold cyan] [dim]{VERSION}[/dim]", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+
+    for sl in _system_info():
+        console.print(f"{pad} {sl}", highlight=False)
+    console.print(f"{pad} GitHub: {_github_status()}", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+
+    projects = project_list()
+    console.print(f"{pad} [bold]Projects[/bold]", highlight=False)
+    for i, name in enumerate(projects, 1):
+        detail = _project_detail(name)
+        console.print(f"{pad}  [cyan]{i}[/cyan]  {name}  {detail}", highlight=False)
+    if not projects:
+        console.print(f"{pad}  [dim]No projects[/dim]", highlight=False)
+    console.print(f"{pad}  [cyan]\\[n][/cyan]  New   [cyan]\\[d][/cyan]  Delete", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+    console.print()
+
+
+def _print_header_compact(state: TuiState) -> None:
+    """Compact header: text-only, minimal info, no borders."""
+    pad = " " * _frame_left_pad()
+    console.print()
+    console.print(f"{pad}[bold cyan]ARASUL[/bold cyan] [dim]{VERSION}[/dim]", highlight=False)
+    w = min(console.width - 2, 40)
+    console.print(f"{pad}[dim]{'─' * w}[/dim]", highlight=False)
+    sys_info = _system_info()
+    for sline in sys_info[:2]:
+        console.print(f"{pad}{sline}", highlight=False)
+    projects = project_list()
+    if projects:
+        console.print(f"{pad}Projects: {len(projects)}  {projects[0]}", highlight=False)
+    else:
+        console.print(f"{pad}[dim]No projects[/dim]", highlight=False)
+    console.print()
 
 
 def print_header(state: TuiState, full: bool = True) -> None:
@@ -237,38 +310,12 @@ def print_header(state: TuiState, full: bool = True) -> None:
         console.print()
         return
 
-    w = _adaptive_width()
-    content_w = w - 8
-    bar = "═" * (w - 6)
-    sep = "─" * content_w
-
-    logo_lines = _build_logo_lines()
-    info_lines = _build_info_lines(state, content_w)
-
-    frame: list[str] = []
-
-    frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
-    frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
-
-    logo_w = max(len(ln) for ln in logo_lines)
-    for line in logo_lines:
-        left_pad = (content_w - logo_w) // 2
-        padded = " " * left_pad + line.ljust(logo_w)
-        padded = padded.ljust(content_w)
-        frame.append(f"[cyan]║[/cyan]   [bold cyan]{padded}[/bold cyan]   [cyan]║[/cyan]")
-
-    frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
-
-    for line in info_lines:
-        frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
-
-    frame.append(f"[cyan]║ ╔{bar}╗ ║[/cyan]")
-    frame.append(f"[cyan]╚═╩{bar}╩═╝[/cyan]")
-
-    console.print()
-    for line in frame:
-        console.print(line, justify="center", highlight=False)
-    console.print()
+    if console.width >= TIER_FULL:
+        _print_header_full(state)
+    elif console.width >= TIER_MEDIUM:
+        _print_header_medium(state)
+    else:
+        _print_header_compact(state)
 
 
 def print_project_menu(state: TuiState) -> None:
@@ -290,12 +337,41 @@ def print_project_menu(state: TuiState) -> None:
     console.print()
 
 
-def print_project_screen(state: TuiState) -> None:
-    """Show the full project screen with git info and shortcuts."""
-    if not state.active_project:
-        return
+def _project_info_rows(project: Path, git: Any) -> list[tuple[str, str]]:
+    """Build key-value rows for project info."""
+    from arasul_tui.core.git_info import detect_language, get_disk_usage, get_readme_headline
 
-    from arasul_tui.core.git_info import detect_language, get_disk_usage, get_git_info, get_readme_headline
+    rows: list[tuple[str, str]] = []
+    if git:
+        branch_str = git.branch or "detached"
+        if git.is_dirty:
+            branch_str += " [yellow]*[/yellow]"
+        rows.append(("Branch", branch_str))
+        rows.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[green]clean[/green]"))
+        if git.short_hash:
+            msg = git.commit_message[:35] if git.commit_message else ""
+            rows.append(("Commit", f"{git.short_hash} {msg}"))
+        if git.commit_time:
+            rows.append(("Time", git.commit_time))
+    else:
+        rows.append(("Git", "[dim]not a git repo[/dim]"))
+
+    headline = get_readme_headline(project)
+    if headline:
+        rows.append(("About", headline[:35]))
+    disk = get_disk_usage(project)
+    if disk:
+        rows.append(("Disk", disk))
+    lang = detect_language(project)
+    if lang:
+        rows.append(("Lang", lang))
+    rows.append(("Path", f"[dim]{project}[/dim]"))
+    return rows
+
+
+def _print_project_full(state: TuiState) -> None:
+    """Full project screen: ornate frame, single-column info, shortcuts."""
+    from arasul_tui.core.git_info import get_git_info
 
     project = state.active_project
     name = project.name
@@ -306,36 +382,6 @@ def print_project_screen(state: TuiState) -> None:
     bar = "═" * (w - 6)
     sep = "─" * content_w
 
-    # Build left + right info columns
-    left: list[tuple[str, str]] = []
-    right: list[tuple[str, str]] = []
-
-    if git:
-        branch_str = git.branch or "detached"
-        if git.is_dirty:
-            branch_str += " [yellow]*[/yellow]"
-        left.append(("Branch", branch_str))
-        left.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[green]clean[/green]"))
-        if git.short_hash:
-            msg = git.commit_message[:35] if git.commit_message else ""
-            left.append(("Commit", f"{git.short_hash} {msg}"))
-        if git.commit_time:
-            left.append(("Time", git.commit_time))
-    else:
-        left.append(("Git", "[dim]not a git repo[/dim]"))
-
-    headline = get_readme_headline(project)
-    if headline:
-        right.append(("About", headline[:35]))
-    disk = get_disk_usage(project)
-    if disk:
-        right.append(("Disk", disk))
-    lang = detect_language(project)
-    if lang:
-        right.append(("Lang", lang))
-    right.append(("Path", f"[dim]{project}[/dim]"))
-
-    # Build frame
     frame: list[str] = []
     frame.append(f"[cyan]╔═╦{bar}╦═╗[/cyan]")
     frame.append(f"[cyan]║ ╚{bar}╝ ║[/cyan]")
@@ -343,22 +389,12 @@ def print_project_screen(state: TuiState) -> None:
     frame.append(f"[cyan]║[/cyan]   [bold]{_pad_right(name, content_w)}[/bold]   [cyan]║[/cyan]")
     frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
 
-    # Two-column info
-    left_w = (content_w - 3) // 2
-    right_w = content_w - 3 - left_w
-    max_rows = max(len(left), len(right))
-    left += [("", "")] * (max_rows - len(left))
-    right += [("", "")] * (max_rows - len(right))
-
-    for (lk, lv), (rk, rv) in zip(left, right, strict=False):
-        l_str = f"[bold]{lk}[/bold]   {lv}" if lk else ""
-        r_str = f"[bold]{rk}[/bold]   {rv}" if rk else ""
-        line = f"{_pad_right(l_str, left_w)} [dim]│[/dim] {_pad_right(r_str, right_w)}"
+    for k, v in _project_info_rows(project, git):
+        line = f"[bold]{k}[/bold]   {v}" if k else ""
         frame.append(f"[cyan]║[/cyan]   {_pad_right(line, content_w)}   [cyan]║[/cyan]")
 
     frame.append(f"[cyan]║[/cyan]   [dim]{sep}[/dim]   [cyan]║[/cyan]")
 
-    # Shortcuts
     shortcuts = [
         ("[cyan]\\[c][/cyan]", "Claude Code"),
         ("[cyan]\\[g][/cyan]", "lazygit"),
@@ -372,10 +408,73 @@ def print_project_screen(state: TuiState) -> None:
     frame.append(f"[cyan]║ ╔{bar}╗ ║[/cyan]")
     frame.append(f"[cyan]╚═╩{bar}╩═╝[/cyan]")
 
+    pad = " " * _frame_left_pad()
     console.print()
     for line in frame:
-        console.print(line, justify="center", highlight=False)
+        console.print(f"{pad}{line}", highlight=False)
     console.print()
+
+
+def _print_project_medium(state: TuiState) -> None:
+    """Medium project screen: thin separators, single-column info."""
+    from arasul_tui.core.git_info import get_git_info
+
+    project = state.active_project
+    name = project.name
+    git = get_git_info(project)
+
+    w = min(console.width - 2, 60)
+    pad = " " * _frame_left_pad()
+    sep = "─" * w
+
+    console.print()
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+    console.print(f"{pad} [bold]{name}[/bold]", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+
+    for k, v in _project_info_rows(project, git):
+        if k:
+            console.print(f"{pad} [bold]{k}[/bold]   {v}", highlight=False)
+
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+    console.print(f"{pad} [cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
+    console.print(f"{pad}[dim]{sep}[/dim]", highlight=False)
+    console.print()
+
+
+def _print_project_compact(state: TuiState) -> None:
+    """Compact project screen: text-only, minimal info."""
+    from arasul_tui.core.git_info import get_git_info
+
+    project = state.active_project
+    name = project.name
+    git = get_git_info(project)
+
+    pad = " " * _frame_left_pad()
+    console.print()
+    console.print(f"{pad}[bold]{name}[/bold]", highlight=False)
+    w = min(console.width - 2, 40)
+    console.print(f"{pad}[dim]{'─' * w}[/dim]", highlight=False)
+    if git:
+        branch_str = git.branch or "detached"
+        if git.is_dirty:
+            branch_str += " [yellow]*[/yellow]"
+        console.print(f"{pad}Branch: {branch_str}", highlight=False)
+    console.print(f"{pad}[cyan]\\[c][/cyan] Claude  [cyan]\\[g][/cyan] lazygit  [cyan]\\[b][/cyan] Back", highlight=False)
+    console.print()
+
+
+def print_project_screen(state: TuiState) -> None:
+    """Show the project screen with git info and shortcuts (three-tier responsive)."""
+    if not state.active_project:
+        return
+
+    if console.width >= TIER_FULL:
+        _print_project_full(state)
+    elif console.width >= TIER_MEDIUM:
+        _print_project_medium(state)
+    else:
+        _print_project_compact(state)
 
 
 def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
@@ -536,9 +635,8 @@ def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
 
 
 def _frame_left_pad() -> int:
-    """Left padding to align content with the centered frame."""
-    w = _adaptive_width()
-    return max(0, (console.width - w) // 2)
+    """Fixed left margin for left-aligned layout."""
+    return 1
 
 
 def content_pad() -> str:
