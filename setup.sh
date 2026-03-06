@@ -65,6 +65,7 @@ load_config() {
     INSTALL_CLAUDE="${INSTALL_CLAUDE:-true}"
     INSTALL_OLLAMA="${INSTALL_OLLAMA:-false}"
     INSTALL_ARASUL_TUI="${INSTALL_ARASUL_TUI:-true}"
+    INSTALL_N8N="${INSTALL_N8N:-false}"
     POWER_MODE="${POWER_MODE:-3}"
     DOCKER_LOG_MAX_SIZE="${DOCKER_LOG_MAX_SIZE:-10m}"
     DOCKER_LOG_MAX_FILES="${DOCKER_LOG_MAX_FILES:-3}"
@@ -160,7 +161,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --skip-reboot)   SKIP_REBOOT=true; shift ;;
-            --step)          SINGLE_STEP="$2"; shift 2 ;;
+            --step)          SINGLE_STEP="${2:-}"; shift 2 ;;
             --interactive)   INTERACTIVE=true; shift ;;
             -h|--help)
                 echo "Usage: sudo ./setup.sh [OPTIONS]"
@@ -180,6 +181,7 @@ parse_args() {
                 echo "  6  Dev tools (Node.js, Python, Claude Code)"
                 echo "  7  Quality of life (tmux, aliases, jtop)"
                 echo "  8  Headless browser (Playwright + Chromium)"
+                echo "  9  n8n workflow automation (Docker stack)"
                 exit 0
                 ;;
             *) err "Unknown option: $1"; exit 1 ;;
@@ -205,7 +207,7 @@ run_script() {
     # Export all config variables for subscripts
     export REAL_USER REAL_HOME NVME_DEVICE NVME_MOUNT SWAP_SIZE
     export INSTALL_TAILSCALE INSTALL_CLAUDE INSTALL_OLLAMA
-    export INSTALL_ARASUL_TUI
+    export INSTALL_ARASUL_TUI INSTALL_N8N
     export NODE_VERSION POWER_MODE JETSON_HOSTNAME CUSTOMER_NAME
     export GIT_USER_NAME GIT_USER_EMAIL
     export DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILES
@@ -264,7 +266,8 @@ if [[ -n "$SINGLE_STEP" ]]; then
         6) run_script "06" "devtools-setup" ;;
         7) run_script "07" "quality-of-life" ;;
         8) run_script "08" "browser-setup" ;;
-        *) err "Invalid step: $SINGLE_STEP (must be 1-8)"; exit 1 ;;
+        9) run_script "09" "n8n-setup" ;;
+        *) err "Invalid step: $SINGLE_STEP (must be 1-9)"; exit 1 ;;
     esac
 else
     run_script "01" "system-optimize"
@@ -283,6 +286,12 @@ else
     run_script "06" "devtools-setup"
     run_script "07" "quality-of-life"
     run_script "08" "browser-setup"
+
+    if [[ "${INSTALL_N8N}" == "true" ]]; then
+        run_script "09" "n8n-setup"
+    else
+        log "n8n skipped (INSTALL_N8N=false)"
+    fi
 fi
 
 echo ""

@@ -136,4 +136,71 @@ def security_audit() -> list[AuditItem]:
     else:
         items.append(AuditItem("Auto security updates", "Not configured", "warn"))
 
+    # n8n security checks (only if installed)
+    items.extend(_n8n_security_audit())
+
+    return items
+
+
+def _n8n_security_audit() -> list[AuditItem]:
+    """n8n-specific security checks."""
+    items: list[AuditItem] = []
+    n8n_env = Path("/mnt/nvme/n8n/.env")
+
+    if not n8n_env.exists():
+        return items  # n8n not installed, skip silently
+
+    # Encryption key exists
+    try:
+        content = n8n_env.read_text(encoding="utf-8", errors="replace")
+        if "N8N_ENCRYPTION_KEY=" in content:
+            key_line = [ln for ln in content.splitlines() if ln.startswith("N8N_ENCRYPTION_KEY=")]
+            key = key_line[0].split("=", 1)[1] if key_line else ""
+            if len(key) >= 32:
+                items.append(AuditItem("n8n encryption key", f"{len(key)} chars", "ok"))
+            else:
+                items.append(AuditItem("n8n encryption key", "Too short or missing", "fail"))
+        else:
+            items.append(AuditItem("n8n encryption key", "Not set", "fail"))
+    except Exception:
+        items.append(AuditItem("n8n encryption key", "Cannot read .env", "warn"))
+
+    # .env file permissions
+    try:
+        mode = oct(n8n_env.stat().st_mode)[-3:]
+        if mode == "600":
+            items.append(AuditItem("n8n .env permissions", "600 (owner only)", "ok"))
+        else:
+            items.append(AuditItem("n8n .env permissions", f"{mode} (should be 600)", "warn"))
+    except Exception:
+        pass
+
+    # Encryption key backup
+    backup = Path("/mnt/nvme/backups/n8n/encryption-key.txt")
+    if backup.exists():
+        items.append(AuditItem("n8n key backup", str(backup), "ok"))
+    else:
+        items.append(AuditItem("n8n key backup", "No backup found", "warn"))
+
+    # PostgreSQL not exposed
+    n8n_running = run_cmd(
+        "docker ps --filter name=n8n --filter status=running -q 2>/dev/null", timeout=5
+    )
+    if n8n_running and not n8n_running.startswith("Error"):
+        pg_ports = run_cmd(
+            "docker ps --filter name=postgres --format '{{.Ports}}' 2>/dev/null", timeout=5
+        )
+        if pg_ports and "0.0.0.0" in pg_ports:
+            items.append(AuditItem("n8n PostgreSQL", "Exposed externally", "fail"))
+        else:
+            items.append(AuditItem("n8n PostgreSQL", "Internal only", "ok"))
+
+    # UFW rule for 5678
+    ufw_n8n = run_cmd("sudo ufw status 2>/dev/null | grep 5678", timeout=5)
+    if ufw_n8n and not ufw_n8n.startswith("Error"):
+        if "/" in ufw_n8n and "Anywhere" not in ufw_n8n:
+            items.append(AuditItem("n8n firewall", "LAN restricted", "ok"))
+        else:
+            items.append(AuditItem("n8n firewall", "Open to all", "warn"))
+
     return items

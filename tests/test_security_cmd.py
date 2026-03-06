@@ -53,3 +53,41 @@ def test_security_audit_returns_items():
     for item in items:
         assert isinstance(item, AuditItem)
         assert item.status in ("ok", "warn", "fail")
+
+
+def test_n8n_security_audit_not_installed():
+    """n8n audit returns empty list when n8n is not installed."""
+    from arasul_tui.core.security import _n8n_security_audit
+
+    with patch("arasul_tui.core.security.Path") as MockPath:
+        mock_env = MockPath.return_value
+        mock_env.exists.return_value = False
+        items = _n8n_security_audit()
+    assert items == []
+
+
+def test_n8n_security_audit_with_env(tmp_path):
+    """n8n audit checks encryption key from .env file."""
+    from arasul_tui.core.security import _n8n_security_audit
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("N8N_ENCRYPTION_KEY=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\n")
+    env_file.chmod(0o600)
+
+    with (
+        patch("arasul_tui.core.security.Path") as MockPath,
+        patch("arasul_tui.core.security.run_cmd", return_value=""),
+    ):
+        # First Path() call is for n8n_env, second for backup
+        def path_side_effect(path_str):
+            if path_str == "/mnt/nvme/n8n/.env":
+                return env_file
+            mock = type(env_file)(tmp_path / "nonexistent")
+            return mock
+
+        MockPath.side_effect = path_side_effect
+        items = _n8n_security_audit()
+
+    # Should have at least the encryption key check
+    labels = [i.label for i in items]
+    assert any("encryption" in lbl for lbl in labels)

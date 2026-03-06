@@ -92,8 +92,19 @@ def _create_finish(state: TuiState, user_input: str) -> CommandResult:
         return CommandResult(ok=False, style="silent")
     target.mkdir(parents=True, exist_ok=False)
     register_project(name=name, path=target, provider_default="claude")
+
+    # n8n project scaffolding
+    from arasul_tui.core.n8n_project import is_n8n_project_name, scaffold_n8n_project
+
+    if is_n8n_project_name(name):
+        scaffold_n8n_project(target)
+        print_success(f"n8n project created: [bold]{name}[/bold]")
+        print_info("CLAUDE.md and guardrails configured.")
+        print_info("Subdirs: [dim]workflows/[/dim], [dim]docs/[/dim]")
+    else:
+        print_success(f"Project created: [bold]{name}[/bold]")
+
     state.active_project = target
-    print_success(f"Project created: [bold]{name}[/bold]")
     print_info(f"Path: [dim]{target}[/dim]")
     return CommandResult(ok=True, style="silent", refresh=True)
 

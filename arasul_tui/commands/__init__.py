@@ -7,6 +7,7 @@ from arasul_tui.commands.browser_cmd import cmd_browser
 from arasul_tui.commands.git_ops import cmd_git
 from arasul_tui.commands.mcp import cmd_mcp
 from arasul_tui.commands.meta import cmd_exit, cmd_help
+from arasul_tui.commands.n8n_cmd import cmd_n8n
 from arasul_tui.commands.project import (
     _clone_finish,
     _create_finish,
@@ -55,6 +56,8 @@ __all__ = [
     "cmd_mcp",
     # Tailscale
     "cmd_tailscale",
+    # n8n
+    "cmd_n8n",
     # Meta
     "cmd_help",
     "cmd_exit",

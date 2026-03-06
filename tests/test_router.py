@@ -59,6 +59,7 @@ def test_registry_has_all_commands():
         "logins",
         "security",
         "mcp",
+        "n8n",
         "tailscale",
     }
     actual = set(REGISTRY.names())
@@ -66,7 +67,7 @@ def test_registry_has_all_commands():
 
 
 def test_registry_command_count():
-    assert len(REGISTRY.names()) == 21
+    assert len(REGISTRY.names()) == 22
 
 
 def test_slash_only(state: TuiState):
@@ -93,4 +94,5 @@ def test_registry_categories():
     assert "Claude Code" in cats
     assert "System" in cats
     assert "Security" in cats
+    assert "Services" in cats
     assert "Meta" in cats

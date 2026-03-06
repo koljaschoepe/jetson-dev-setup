@@ -87,7 +87,22 @@ SETUP_STEPS: list[SetupStep] = [
         script="scripts/08-browser-setup.sh",
         check_done=lambda: _cmd_exists("playwright"),
     ),
+    SetupStep(
+        number=9,
+        name="n8n Automation",
+        description="n8n + PostgreSQL Docker stack",
+        script="scripts/09-n8n-setup.sh",
+        check_done=lambda: _n8n_running(),
+    ),
 ]
+
+
+def _n8n_running() -> bool:
+    out = run_cmd(
+        "docker ps --filter name=n8n --filter status=running --format '{{.Names}}' 2>/dev/null",
+        timeout=5,
+    )
+    return bool(out and "n8n" in out and not out.startswith("Error"))
 
 
 def check_setup_status() -> list[tuple[SetupStep, bool]]:
