@@ -49,7 +49,6 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - N8N_RUNNERS_MODE=external
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
       - N8N_DIAGNOSTICS_ENABLED=false
       - N8N_TEMPLATES_ENABLED=true
