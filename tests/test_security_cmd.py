@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 from arasul_tui.commands.security import cmd_keys, cmd_logins, cmd_security
+from arasul_tui.core.platform import GpuInfo, Platform, StorageInfo
 from arasul_tui.core.router import REGISTRY
 from arasul_tui.core.security import AuditItem, SSHKey, list_ssh_keys, recent_logins, security_audit
 from arasul_tui.core.state import TuiState
+
+
+def _make_platform(storage_mount: Path = Path("/tmp/test")) -> Platform:
+    return Platform(
+        name="generic",
+        model="Test",
+        arch="aarch64",
+        ram_mb=8192,
+        gpu=GpuInfo(type="none", has_cuda=False, cuda_version=""),
+        storage=StorageInfo(type="sd_only", mount=storage_mount, device=""),
+        has_docker=False,
+        has_nvidia_runtime=False,
+    )
 
 
 def test_ssh_key_dataclass():
@@ -58,13 +73,12 @@ def test_security_audit_returns_items():
         assert item.status in ("ok", "warn", "fail")
 
 
-def test_n8n_security_audit_not_installed():
+def test_n8n_security_audit_not_installed(tmp_path):
     """n8n audit returns empty list when n8n is not installed."""
     from arasul_tui.core.security import _n8n_security_audit
 
-    with patch("arasul_tui.core.security.Path") as MockPath:
-        mock_env = MockPath.return_value
-        mock_env.exists.return_value = False
+    fake_platform = _make_platform(storage_mount=tmp_path / "nonexistent")
+    with patch("arasul_tui.core.platform.get_platform", return_value=fake_platform):
         items = _n8n_security_audit()
     assert items == []
 
