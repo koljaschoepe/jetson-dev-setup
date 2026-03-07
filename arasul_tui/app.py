@@ -325,22 +325,26 @@ def run() -> None:
     wizard_step: tuple[int, int, str] | None = None
     launch_request: tuple[str, Path] | None = None
 
-    session: PromptSession[str] = PromptSession(
-        history=InMemoryHistory(),
-        completer=SmartCompleter(),
-        complete_while_typing=True,
-        style=Style.from_dict(
-            {
-                "completion-menu": "bg:#1a1a1a",
-                "completion-menu.completion": "bg:#1a1a1a #888888",
-                "completion-menu.completion.current": "bg:#2d2d2d #ffffff bold",
-                "completion-menu.meta.completion": "bg:#1a1a1a #555555",
-                "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
-                "scrollbar.background": "bg:#1a1a1a",
-                "scrollbar.button": "bg:#1a1a1a",
-            }
-        ),
-    )
+    try:
+        session: PromptSession[str] = PromptSession(
+            history=InMemoryHistory(),
+            completer=SmartCompleter(),
+            complete_while_typing=True,
+            style=Style.from_dict(
+                {
+                    "completion-menu": "bg:#1a1a1a",
+                    "completion-menu.completion": "bg:#1a1a1a #888888",
+                    "completion-menu.completion.current": "bg:#2d2d2d #ffffff bold",
+                    "completion-menu.meta.completion": "bg:#1a1a1a #555555",
+                    "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
+                    "scrollbar.background": "bg:#1a1a1a",
+                    "scrollbar.button": "bg:#1a1a1a",
+                }
+            ),
+        )
+    except Exception:
+        # Graceful fallback if prompt_toolkit can't initialize (e.g., broken TTY)
+        return
 
     print_header(state, full=True)
     state.first_run = False
@@ -366,6 +370,9 @@ def run() -> None:
             )
         except (EOFError, KeyboardInterrupt):
             break
+        except Exception:
+            # Connection lost or terminal issue — exit gracefully
+            break
 
         command = raw.strip()
         if not command:
@@ -378,7 +385,13 @@ def run() -> None:
                 wizard_step = None
                 print_info("Cancelled.")
                 continue
-            result = pending_handler(state, command)
+            try:
+                result = pending_handler(state, command)
+            except Exception:
+                pending_handler = None
+                wizard_step = None
+                print_error("Command failed unexpectedly.")
+                continue
             pending_handler = None
             wizard_step = None
             _handle_result(result)
@@ -387,7 +400,11 @@ def run() -> None:
             continue
 
         # Normal dispatch
-        result, launch, should_break = _dispatch_command(state, command)
+        try:
+            result, launch, should_break = _dispatch_command(state, command)
+        except Exception:
+            print_error("Command failed unexpectedly.")
+            continue
         if result:
             _handle_result(result)
         if launch:

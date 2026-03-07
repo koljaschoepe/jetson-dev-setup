@@ -1,5 +1,5 @@
 # =============================================================================
-# Jetson Dev Server — SSH Configuration for Mac
+# Arasul Dev Server — SSH Configuration for Mac
 # =============================================================================
 # Copy the relevant sections to ~/.ssh/config on your Mac.
 #
@@ -10,22 +10,23 @@
 # Replace USER and HOSTNAME with your actual values!
 # =============================================================================
 
-# --- Jetson via LAN (mDNS) ---
+# --- Device via LAN (mDNS) ---
 Host jetson
     HostName HOSTNAME.local
     User USER
     IdentityFile ~/.ssh/id_ed25519
     ControlMaster auto
-    ControlPersist 600
+    ControlPersist 60
     ControlPath ~/.ssh/sockets/%r@%h-%p
-    ServerAliveInterval 60
+    ServerAliveInterval 30
     ServerAliveCountMax 3
-    # Port forwarding for dev ports
-    LocalForward 3000 localhost:3000
-    LocalForward 8080 localhost:8080
-    LocalForward 8888 localhost:8888
+    ExitOnForwardFailure no
+    # Port forwarding — comment out if ports are already in use locally
+    # LocalForward 3000 localhost:3000
+    # LocalForward 8080 localhost:8080
+    # LocalForward 8888 localhost:8888
 
-# --- Jetson via USB-C Direct Connection ---
+# --- Device via USB-C Direct Connection ---
 Host jetson-usb
     HostName 192.168.55.1
     User USER
@@ -35,4 +36,10 @@ Host jetson-usb
 # Quick reference:
 #   ssh jetson      → LAN (fastest, home/office)
 #   ssh jetson-usb  → USB-C direct (no network needed)
+#
+# Troubleshooting:
+#   If connection drops, clear stale sockets:
+#     rm -f ~/.ssh/sockets/*
+#   Connect without multiplexing:
+#     ssh -o ControlMaster=no -o ControlPath=none jetson
 # =============================================================================

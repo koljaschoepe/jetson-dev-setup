@@ -15,7 +15,9 @@ def run_cmd(cmd: str, timeout: int = 4) -> str:
             cmd,
             shell=True,
             check=False,
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             timeout=timeout,
         )

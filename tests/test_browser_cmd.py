@@ -12,10 +12,11 @@ def _state() -> TuiState:
 
 
 def test_browser_status():
-    with patch("arasul_tui.commands.browser_cmd.browser_health", return_value=["Health OK"]):
+    rows = [("Playwright", "[green]\u2713[/green] installed")]
+    with patch("arasul_tui.commands.browser_cmd.browser_health", return_value=rows):
         result = cmd_browser(_state(), ["status"])
     assert result.ok is True
-    assert result.style == "panel"
+    assert result.style == "silent"
 
 
 def test_browser_test_ok():
@@ -47,7 +48,6 @@ def test_browser_install_auto_mcp():
     ):
         result = cmd_browser(_state(), ["install"])
     assert result.ok is True
-    assert "MCP OK" in result.lines
 
 
 def test_browser_mcp_already_configured():
@@ -71,7 +71,8 @@ def test_browser_unknown_subcommand():
 
 
 def test_browser_default_is_status():
-    with patch("arasul_tui.commands.browser_cmd.browser_health", return_value=["OK"]):
+    rows = [("Playwright", "[green]\u2713[/green] installed")]
+    with patch("arasul_tui.commands.browser_cmd.browser_health", return_value=rows):
         result = cmd_browser(_state(), [])
     assert result.ok is True
-    assert result.style == "panel"
+    assert result.style == "silent"

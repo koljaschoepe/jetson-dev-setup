@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich import box
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -52,15 +53,14 @@ def _bar(pct: float, width: int = 10) -> str:
 def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
     """Print a uniform styled panel with key-value rows."""
     w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
+    left_pad = _frame_left_pad() + 2
     table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
     table.add_column(style="bold", no_wrap=True)
     table.add_column()
     for k, v in rows:
         table.add_row(k, v)
     p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
-    console.print(f"{lpad}", end="", highlight=False)
-    console.print(p, highlight=False)
+    console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
 
 
 def print_checklist(title: str, items: list[tuple[str, str, str]]) -> None:
@@ -116,7 +116,7 @@ def print_step(current: int, total: int, title: str) -> None:
 
 def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
     w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
+    left_pad = _frame_left_pad() + 2
     table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
     table.add_column(style="bold", no_wrap=True)
     table.add_column()
@@ -124,8 +124,6 @@ def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
         table.add_row(k, v)
     if title:
         p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(p, highlight=False)
+        console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
     else:
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(table, highlight=False)
+        console.print(Padding(table, (0, 0, 0, left_pad)), highlight=False)

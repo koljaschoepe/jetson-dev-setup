@@ -130,7 +130,7 @@ if ! grep -q "ARASUL_SHELL_ACTIVE" "$BASHRC" 2>/dev/null; then
     cat >> "$BASHRC" << 'AUTOSTART'
 
 # Auto-start Arasul Shell on interactive SSH login
-if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && command -v arasul &>/dev/null; then
+if [ -n "$SSH_CONNECTION" ] && [ -z "$ARASUL_SHELL_ACTIVE" ] && [ -t 0 ] && command -v arasul &>/dev/null; then
     export ARASUL_SHELL_ACTIVE=1
     arasul || true
 fi

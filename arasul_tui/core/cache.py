@@ -90,7 +90,7 @@ def parallel_cmds(cmds: dict[str, tuple[str, int]]) -> dict[str, str]:
     if not uncached:
         return results
 
-    with ThreadPoolExecutor(max_workers=min(8, len(uncached))) as pool:
+    with ThreadPoolExecutor(max_workers=min(4, len(uncached))) as pool:
         futures = {pool.submit(run_cmd, cmd, timeout): (key, cmd) for key, (cmd, timeout) in uncached.items()}
         for future in as_completed(futures):
             key, cmd = futures[future]

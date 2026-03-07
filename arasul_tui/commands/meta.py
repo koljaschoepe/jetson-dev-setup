@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from rich import box
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 
@@ -14,6 +15,7 @@ from arasul_tui.core.ui import _adaptive_width, _frame_left_pad, console, conten
 def _box(title: str, rows: list[str], pad: str) -> None:
     """Print a responsive rounded panel with title and content rows."""
     w = _adaptive_width() - 4
+    left_pad = _frame_left_pad() + 2
     text = "\n".join(rows)
     p = Panel(
         text,
@@ -24,9 +26,7 @@ def _box(title: str, rows: list[str], pad: str) -> None:
         padding=(0, 1),
         width=w,
     )
-    lpad = " " * (_frame_left_pad() + 2)
-    console.print(f"{lpad}", end="", highlight=False)
-    console.print(p, highlight=False)
+    console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def _help_main(pad: str, reg: CommandRegistry) -> None:
 
     # Commands by category
     w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
+    left_pad = _frame_left_pad() + 2
     cats = reg.categories()
     order = ["Projects", "Claude Code", "Git", "System", "Security", "Browser", "MCP", "Network", "Meta"]
     for cat in order:
@@ -104,8 +104,7 @@ def _help_main(pad: str, reg: CommandRegistry) -> None:
             padding=(0, 1),
             width=w,
         )
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(p, highlight=False)
+        console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
         console.print()
 
     console.print(f"{pad}[{DIM}]Slash commands (/status, /help) also work.[/{DIM}]", highlight=False)
@@ -118,7 +117,7 @@ def _help_project(pad: str, reg: CommandRegistry) -> None:
     console.print()
 
     w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
+    left_pad = _frame_left_pad() + 2
 
     def _cmd_table(items: list[tuple[str, str]]) -> Table:
         table = Table(show_header=False, box=None, padding=(0, 1), expand=True)
@@ -148,8 +147,7 @@ def _help_project(pad: str, reg: CommandRegistry) -> None:
         padding=(0, 1),
         width=w,
     )
-    console.print(f"{lpad}", end="", highlight=False)
-    console.print(p, highlight=False)
+    console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
     console.print()
 
     # Other commands
@@ -170,8 +168,7 @@ def _help_project(pad: str, reg: CommandRegistry) -> None:
         padding=(0, 1),
         width=w,
     )
-    console.print(f"{lpad}", end="", highlight=False)
-    console.print(p, highlight=False)
+    console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
     console.print()
 
     console.print(f"{pad}[{DIM}]Just type what you need.[/{DIM}]", highlight=False)

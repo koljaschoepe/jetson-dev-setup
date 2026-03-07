@@ -132,14 +132,28 @@ def print_result(result: CommandResult) -> None:
             console.print(f"{pad}[{ERROR}]{line}[/{ERROR}]", highlight=False)
     elif style == "panel":
         from rich import box
+        from rich.padding import Padding
         from rich.panel import Panel
+        from rich.text import Text as RichText
 
-        text = "\n".join(result.lines)
         w = _adaptive_width() - 4
-        p = Panel(text, border_style="dim", box=box.ROUNDED, padding=(0, 2), width=w)
-        lpad = " " * _frame_left_pad()
-        console.print(f"{lpad}  ", end="", highlight=False)
-        console.print(p, highlight=False)
+        inner_w = w - 6  # borders (2) + padding (2*2)
+        wrapped_lines: list[str] = []
+        for line in result.lines:
+            if len(line) > inner_w:
+                wrapped_lines.append(line[:inner_w - 1] + "\u2026")
+            else:
+                wrapped_lines.append(line)
+        text = "\n".join(wrapped_lines)
+        left_pad = _frame_left_pad() + 2
+        p = Panel(
+            RichText.from_markup(text, no_wrap=True, overflow="ellipsis"),
+            border_style="dim",
+            box=box.ROUNDED,
+            padding=(0, 2),
+            width=w,
+        )
+        console.print(Padding(p, (0, 0, 0, left_pad)), highlight=False)
     elif style == "wizard":
         for line in result.lines:
             console.print(f"{pad}{line}", highlight=False)

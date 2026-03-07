@@ -48,7 +48,7 @@ UsePAM yes
 X11Forwarding no
 MaxAuthTries 3
 LoginGraceTime 20
-ClientAliveInterval 300
+ClientAliveInterval 60
 ClientAliveCountMax 3
 AllowAgentForwarding no
 AllowTcpForwarding yes

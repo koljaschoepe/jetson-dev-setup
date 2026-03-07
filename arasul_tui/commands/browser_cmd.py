@@ -12,6 +12,7 @@ from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
     print_error,
     print_info,
+    print_styled_panel,
     print_success,
 )
 
@@ -20,12 +21,15 @@ def cmd_browser(state: TuiState, args: list[str]) -> CommandResult:
     sub = args[0] if args else "status"
 
     if sub == "status":
-        lines = browser_health()
-        return CommandResult(ok=True, lines=lines, style="panel")
+        rows = browser_health()
+        print_styled_panel("Browser", rows)
+        return CommandResult(ok=True, style="silent")
 
     if sub == "test":
         ok, lines = browser_test()
-        return CommandResult(ok=ok, lines=lines, style="panel")
+        for line in lines:
+            (print_success if ok else print_error)(line)
+        return CommandResult(ok=ok, style="silent")
 
     if sub == "install":
         ok, lines = install_browser()
@@ -35,7 +39,9 @@ def cmd_browser(state: TuiState, args: list[str]) -> CommandResult:
                 lines.append(mcp_msg)
             except OSError as exc:
                 lines.append(f"MCP config failed: {exc}")
-        return CommandResult(ok=ok, lines=lines, style="panel")
+        for line in lines:
+            (print_success if ok else print_error)(line)
+        return CommandResult(ok=ok, style="silent")
 
     if sub == "mcp":
         if is_mcp_configured():

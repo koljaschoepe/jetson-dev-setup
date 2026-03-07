@@ -63,40 +63,40 @@ def ensure_browser() -> tuple[bool, str]:
     return True, "Playwright + Chromium ready."
 
 
-def browser_health() -> list[str]:
-    """Detailed health check, returns status lines."""
-    lines: list[str] = ["Browser Health Check"]
+def browser_health() -> list[tuple[str, str]]:
+    """Detailed health check, returns key-value pairs for styled panel."""
+    rows: list[tuple[str, str]] = []
 
     pw_ok = is_playwright_installed()
     if pw_ok:
         try:
             import playwright
 
-            lines.append(f"  Playwright: v{playwright.__version__}")
+            rows.append(("Playwright", f"[green]\u2713[/green] v{playwright.__version__}"))
         except (ImportError, AttributeError):
-            lines.append("  Playwright: installed (version unknown)")
+            rows.append(("Playwright", "[green]\u2713[/green] installed"))
     else:
-        lines.append("  Playwright: NOT installed")
+        rows.append(("Playwright", "[red]not installed[/red]"))
 
     chrome_bin = _find_chromium_binary()
     if chrome_bin:
-        lines.append(f"  Chromium: {chrome_bin}")
+        rows.append(("Chromium", "[green]\u2713[/green] installed"))
     else:
-        lines.append("  Chromium: NOT found")
+        rows.append(("Chromium", "[red]not found[/red]"))
 
     cache = _browsers_path()
-    lines.append(f"  Cache: {cache}")
+    rows.append(("Cache", f"[dim]{cache}[/dim]"))
     if cache.exists():
         try:
             size_mb = sum(f.stat().st_size for f in cache.rglob("*") if f.is_file()) / (1024 * 1024)
-            lines.append(f"  Cache size: {size_mb:.0f} MB")
+            rows.append(("Cache size", f"{size_mb:.0f} MB"))
         except OSError:
             pass
 
     mcp_ok = is_mcp_configured()
-    lines.append(f"  MCP Server: {'configured' if mcp_ok else 'NOT configured'}")
+    rows.append(("MCP Server", "[green]\u2713[/green] configured" if mcp_ok else "[dim]not configured[/dim]"))
 
-    return lines
+    return rows
 
 
 def browser_test() -> tuple[bool, list[str]]:
