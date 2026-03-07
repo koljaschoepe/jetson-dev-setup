@@ -36,6 +36,7 @@ def test_n8n_installed_stopped_starts(state: TuiState):
             "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
         }),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
+        patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
         result = cmd_n8n(state, [])
     assert result.ok is True
@@ -65,6 +66,7 @@ def test_n8n_running_all_ok_shows_status(state: TuiState):
             "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
         }),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
+        patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
         result = cmd_n8n(state, [])
     assert result.ok is True
@@ -94,6 +96,7 @@ def test_n8n_api_key_finish_saves_and_configures_mcp(state: TuiState):
         patch("arasul_tui.commands.n8n_cmd.n8n_save_api_key") as mock_save,
         patch("arasul_tui.commands.n8n_cmd.is_n8n_mcp_configured", return_value=False),
         patch("arasul_tui.commands.n8n_cmd.configure_n8n_mcp", return_value=(True, "done")),
+        patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
         result = _api_key_finish(state, "  my-api-key-here  ")
     assert result.ok is True
@@ -118,6 +121,7 @@ def test_n8n_unknown_subcommand_treated_as_smart_flow(state: TuiState):
             "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
         }),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
+        patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
         result = cmd_n8n(state, ["foobar"])
     assert result.ok is True

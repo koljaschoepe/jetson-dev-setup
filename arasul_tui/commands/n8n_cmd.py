@@ -385,6 +385,9 @@ def _smart_flow(state: TuiState) -> CommandResult:
         else:
             print_warning(f"MCP setup failed: {msg}")
 
+    # --- Step 5: Ensure n8n-workflows project exists ---
+    _ensure_n8n_project(state)
+
     # --- All good: show status ---
     return _show_status()
 
@@ -402,11 +405,43 @@ def _api_key_finish(state: TuiState, raw: str) -> CommandResult:
     if not is_n8n_mcp_configured():
         ok, msg = configure_n8n_mcp(key)
         if ok:
-            print_success("MCP server configured. n8n is ready!")
+            print_success("MCP server configured.")
         else:
             print_warning(f"MCP setup failed: {msg}")
 
+    # Create n8n-workflows project
+    _ensure_n8n_project(state)
+
+    print_success("n8n is ready! Open [bold]n8n-workflows[/bold] to start building workflows.")
     return CommandResult(ok=True, style="silent")
+
+
+# ---------------------------------------------------------------------------
+# Auto-create n8n-workflows project
+# ---------------------------------------------------------------------------
+
+def _ensure_n8n_project(state: TuiState) -> None:
+    """Create the n8n-workflows project if it doesn't exist yet."""
+    from arasul_tui.core.n8n_project import scaffold_n8n_project
+    from arasul_tui.core.projects import get_project, register_project
+
+    project_dir = state.project_root / "n8n-workflows"
+
+    # Already registered and exists on disk?
+    existing = get_project("n8n-workflows")
+    if existing and Path(existing.path).is_dir():
+        return
+
+    # Create directory + scaffold
+    if not project_dir.exists():
+        project_dir.mkdir(parents=True, exist_ok=True)
+        scaffold_n8n_project(project_dir)
+        print_success("Project [bold]n8n-workflows[/bold] created.")
+        print_info("CLAUDE.md and guardrails configured.")
+
+    # Register in project list
+    if not existing:
+        register_project(name="n8n-workflows", path=project_dir, provider_default="claude")
 
 
 # ---------------------------------------------------------------------------

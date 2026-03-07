@@ -16,17 +16,6 @@ N8N_BASE_URL = "http://localhost:5678"
 API_TIMEOUT = 5
 
 
-def n8n_lan_url() -> str:
-    """Return the n8n URL reachable from the LAN (for user-facing messages).
-
-    Uses the device's LAN IP instead of localhost so the URL works
-    when opened from a remote machine (e.g. Mac browser via SSH).
-    """
-    ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'", timeout=3)
-    if ip and not ip.startswith("Error"):
-        return f"http://{ip.strip()}:5678"
-    return N8N_BASE_URL
-
 
 def n8n_is_installed() -> bool:
     """Check if n8n docker-compose stack exists on disk."""
