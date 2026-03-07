@@ -1,36 +1,32 @@
 from __future__ import annotations
 
+from rich import box
+from rich.panel import Panel
+from rich.table import Table
+
 from arasul_tui.core.registry import CommandRegistry
 from arasul_tui.core.state import Screen, TuiState
 from arasul_tui.core.theme import DIM, PRIMARY
 from arasul_tui.core.types import CommandResult
-from arasul_tui.core.ui import console, content_pad
-
-# Box characters
-_CORNER_TL = "\u256d"  # ╭
-_CORNER_TR = "\u256e"  # ╮
-_CORNER_BL = "\u2570"  # ╰
-_CORNER_BR = "\u256f"  # ╯
-_VLINE = "\u2502"  # │
-_HLINE = "\u2500"  # ─
-_DOT = "\u00b7"  # ·
+from arasul_tui.core.ui import _adaptive_width, _frame_left_pad, console, content_pad
 
 
-def _box(title: str, rows: list[str], pad: str, width: int = 44) -> None:
-    """Print a rounded box section with title and content rows."""
-    inner_w = width - 2
-    title_seg = f" {title} "
-    left_bar = _HLINE * 2
-    right_bar = _HLINE * max(1, inner_w - len(title_seg) - 2)
-    console.print(
-        f"{pad}[{DIM}]{_CORNER_TL}{left_bar}[/{DIM}]"
-        f" [{PRIMARY}]{title}[/{PRIMARY}] "
-        f"[{DIM}]{right_bar}{_CORNER_TR}[/{DIM}]",
-        highlight=False,
+def _box(title: str, rows: list[str], pad: str) -> None:
+    """Print a responsive rounded panel with title and content rows."""
+    w = _adaptive_width() - 4
+    text = "\n".join(rows)
+    p = Panel(
+        text,
+        title=f"[bold {PRIMARY}]{title}[/bold {PRIMARY}]",
+        title_align="left",
+        border_style="dim",
+        box=box.ROUNDED,
+        padding=(0, 1),
+        width=w,
     )
-    for row in rows:
-        console.print(f"{pad}[{DIM}]{_VLINE}[/{DIM}]  {row}", highlight=False)
-    console.print(f"{pad}[{DIM}]{_CORNER_BL}{_HLINE * inner_w}{_CORNER_BR}[/{DIM}]", highlight=False)
+    lpad = " " * (_frame_left_pad() + 2)
+    console.print(f"{lpad}", end="", highlight=False)
+    console.print(p, highlight=False)
 
 
 # ---------------------------------------------------------------------------
@@ -84,21 +80,32 @@ def _help_main(pad: str, reg: CommandRegistry) -> None:
     console.print()
 
     # Commands by category
+    w = _adaptive_width() - 4
+    lpad = " " * (_frame_left_pad() + 2)
     cats = reg.categories()
-    # Define display order
     order = ["Projects", "Claude Code", "Git", "System", "Security", "Browser", "MCP", "Network", "Meta"]
     for cat in order:
         specs = cats.get(cat, [])
         if not specs:
             continue
-        rows = []
+        table = Table(show_header=False, box=None, padding=(0, 1), expand=True)
+        table.add_column(style=f"bold {PRIMARY}", no_wrap=True, max_width=12)
+        table.add_column(style="default", no_wrap=False)
+        table.add_column(style=DIM, no_wrap=False)
         for spec in specs:
-            alias_hint = ""
-            if spec.aliases:
-                top = spec.aliases[0]
-                alias_hint = f"  [{DIM}]({top})[/{DIM}]"
-            rows.append(f"[{PRIMARY}]{spec.name:<10}[/{PRIMARY}]{spec.help_text}{alias_hint}")
-        _box(cat, rows, pad)
+            alias = f"({spec.aliases[0]})" if spec.aliases else ""
+            table.add_row(spec.name, spec.help_text, alias)
+        p = Panel(
+            table,
+            title=f"[bold {PRIMARY}]{cat}[/bold {PRIMARY}]",
+            title_align="left",
+            border_style="dim",
+            box=box.ROUNDED,
+            padding=(0, 1),
+            width=w,
+        )
+        console.print(f"{lpad}", end="", highlight=False)
+        console.print(p, highlight=False)
         console.print()
 
     console.print(f"{pad}[{DIM}]Slash commands (/status, /help) also work.[/{DIM}]", highlight=False)
@@ -110,30 +117,61 @@ def _help_project(pad: str, reg: CommandRegistry) -> None:
     """Context-aware help when a project is open."""
     console.print()
 
+    w = _adaptive_width() - 4
+    lpad = " " * (_frame_left_pad() + 2)
+
+    def _cmd_table(items: list[tuple[str, str]]) -> Table:
+        table = Table(show_header=False, box=None, padding=(0, 1), expand=True)
+        table.add_column(style=f"bold {PRIMARY}", no_wrap=True, max_width=12)
+        table.add_column(style="default", no_wrap=False)
+        for name, desc in items:
+            table.add_row(name, desc)
+        return table
+
     # Project actions
-    rows = [
-        f"[{PRIMARY}]claude[/{PRIMARY}]    Start Claude Code here",
-        f"[{PRIMARY}]lazygit[/{PRIMARY}]   Visual git interface",
-        f"[{PRIMARY}]info[/{PRIMARY}]      Project details",
-        f"[{PRIMARY}]pull[/{PRIMARY}]      Pull latest changes",
-        f"[{PRIMARY}]push[/{PRIMARY}]      Push changes",
-        f"[{PRIMARY}]git log[/{PRIMARY}]   Recent commits",
-        f"[{PRIMARY}]delete[/{PRIMARY}]    Delete this project",
-        f"[{PRIMARY}]back[/{PRIMARY}]      Return to overview",
+    items = [
+        ("claude", "Start Claude Code here"),
+        ("lazygit", "Visual git interface"),
+        ("info", "Project details"),
+        ("pull", "Pull latest changes"),
+        ("push", "Push changes"),
+        ("git log", "Recent commits"),
+        ("delete", "Delete this project"),
+        ("back", "Return to overview"),
     ]
-    _box("In This Project", rows, pad)
+    p = Panel(
+        _cmd_table(items),
+        title=f"[bold {PRIMARY}]In This Project[/bold {PRIMARY}]",
+        title_align="left",
+        border_style="dim",
+        box=box.ROUNDED,
+        padding=(0, 1),
+        width=w,
+    )
+    console.print(f"{lpad}", end="", highlight=False)
+    console.print(p, highlight=False)
     console.print()
 
     # Other commands
-    rows = [
-        f"[{PRIMARY}]status[/{PRIMARY}]    System overview",
-        f"[{PRIMARY}]health[/{PRIMARY}]    Diagnostics",
-        f"[{PRIMARY}]docker[/{PRIMARY}]    Containers",
-        f"[{PRIMARY}]repos[/{PRIMARY}]     All projects",
-        f"[{PRIMARY}]n8n[/{PRIMARY}]       Workflow automation",
-        f"[{PRIMARY}]help[/{PRIMARY}]      Full help",
+    items = [
+        ("status", "System overview"),
+        ("health", "Diagnostics"),
+        ("docker", "Containers"),
+        ("repos", "All projects"),
+        ("n8n", "Workflow automation"),
+        ("help", "Full help"),
     ]
-    _box("Also Available", rows, pad)
+    p = Panel(
+        _cmd_table(items),
+        title=f"[bold {PRIMARY}]Also Available[/bold {PRIMARY}]",
+        title_align="left",
+        border_style="dim",
+        box=box.ROUNDED,
+        padding=(0, 1),
+        width=w,
+    )
+    console.print(f"{lpad}", end="", highlight=False)
+    console.print(p, highlight=False)
     console.print()
 
     console.print(f"{pad}[{DIM}]Just type what you need.[/{DIM}]", highlight=False)

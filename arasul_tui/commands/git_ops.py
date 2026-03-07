@@ -12,6 +12,7 @@ from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
     console,
     content_pad,
+    content_width,
     print_error,
     print_info,
     print_kv,
@@ -20,6 +21,7 @@ from arasul_tui.core.ui import (
     print_success,
     print_warning,
     spinner_run,
+    truncate,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,7 +53,7 @@ def _git_status_lines() -> list[tuple[str, str]]:
 
     ssh_key = Path.home() / ".ssh" / "id_ed25519.pub"
     if ssh_key.exists():
-        rows.append(("SSH Key", f"[green]✓[/green] [dim]{ssh_key}[/dim]"))
+        rows.append(("SSH Key", f"[green]✓[/green] [dim]{truncate(str(ssh_key), content_width() - 4)}[/dim]"))
     else:
         rows.append(("SSH Key", "[dim]not found[/dim]"))
 
@@ -321,13 +323,14 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
         if not output or output.startswith("Error"):
             print_info("No git history.")
         else:
+            cw = content_width()
             rows: list[tuple[str, str]] = []
             for line in output.splitlines():
                 parts = line.split(None, 1)
                 if len(parts) == 2:
-                    rows.append((f"[dim]{parts[0]}[/dim]", parts[1]))
+                    rows.append((f"[dim]{parts[0]}[/dim]", truncate(parts[1], cw - 10)))
                 else:
-                    rows.append((line, ""))
+                    rows.append((truncate(line, cw), ""))
             print_styled_panel("Recent Commits", rows)
         return CommandResult(ok=True, style="silent")
 
@@ -338,7 +341,7 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
             print_success("Working tree clean.")
         else:
             pad = content_pad()
-            console.print(f"{pad}[dim]{output}[/dim]", highlight=False)
+            console.print(f"{pad}[dim]{output}[/dim]", highlight=False, soft_wrap=True)
         return CommandResult(ok=True, style="silent")
 
     print_error(f"Unknown git subcommand: [bold]{sub}[/bold]")

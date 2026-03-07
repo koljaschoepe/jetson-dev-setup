@@ -15,6 +15,7 @@ from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
     console,
     content_pad,
+    content_width,
     get_default_interface,
     print_error,
     print_info,
@@ -24,6 +25,7 @@ from arasul_tui.core.ui import (
     print_success,
     print_warning,
     spinner_run,
+    truncate,
 )
 
 # ---------------------------------------------------------------------------
@@ -99,9 +101,10 @@ def cmd_health(state: TuiState, _: list[str]) -> CommandResult:
     rows.append(("Swap", f"{swap.percent:.0f}% ({swap.used // (1024 * 1024)}M / {swap.total // (1024 * 1024)}M)"))
 
     # NVMe health
+    cw = content_width()
     nvme_health = run_cmd("sudo smartctl -A /dev/nvme0n1 2>/dev/null | grep 'Percentage Used'", timeout=5)
     if nvme_health and ":" in nvme_health:
-        rows.append(("NVMe Health", nvme_health.split(":", 1)[-1].strip()))
+        rows.append(("NVMe Health", truncate(nvme_health.split(":", 1)[-1].strip(), cw)))
     else:
         rows.append(("NVMe Health", "n/a"))
 
@@ -124,7 +127,7 @@ def cmd_health(state: TuiState, _: list[str]) -> CommandResult:
     # fail2ban
     f2b = run_cmd("sudo fail2ban-client status sshd 2>/dev/null | grep 'Currently banned'", timeout=5)
     if f2b and ":" in f2b:
-        rows.append(("fail2ban", f2b.split(":", 1)[-1].strip()))
+        rows.append(("fail2ban", truncate(f2b.split(":", 1)[-1].strip(), cw)))
     else:
         f2b_active = run_cmd("systemctl is-active fail2ban 2>/dev/null")
         rows.append(("fail2ban", f2b_active if f2b_active else "n/a"))
@@ -234,11 +237,14 @@ def cmd_docker(state: TuiState, _: list[str]) -> CommandResult:
 
     from arasul_tui.core.theme import ICON_DOT_OFF, ICON_DOT_ON
 
+    cw = content_width()
     rows: list[tuple[str, str]] = []
     for c in containers:
         status = c.status
         icon = ICON_DOT_ON if "Up" in status else ICON_DOT_OFF
-        rows.append((f"{icon} {c.name}", f"{c.image} \u2014 {status}"))
+        name = truncate(c.name, 24)
+        image = truncate(c.image, cw - 10)
+        rows.append((f"{icon} {name}", f"{image} \u2014 {status}"))
 
     print_styled_panel("Docker Containers", rows)
     return CommandResult(ok=True, style="silent")

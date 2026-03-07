@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from arasul_tui.commands.ai import cmd_auth, cmd_claude
 from arasul_tui.commands.browser_cmd import cmd_browser
+from arasul_tui.commands.expose_cmd import cmd_expose
 from arasul_tui.commands.git_ops import cmd_git
 from arasul_tui.commands.mcp import cmd_mcp
 from arasul_tui.commands.meta import cmd_exit, cmd_help
@@ -54,6 +55,8 @@ __all__ = [
     "cmd_browser",
     # MCP
     "cmd_mcp",
+    # Expose
+    "cmd_expose",
     # Tailscale
     "cmd_tailscale",
     # n8n

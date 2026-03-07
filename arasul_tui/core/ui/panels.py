@@ -77,7 +77,7 @@ def print_checklist(title: str, items: list[tuple[str, str, str]]) -> None:
             icon = ICON_WARN
         else:
             icon = ICON_FAIL
-        console.print(f"{pad}   {icon}  [bold]{label}[/bold]       {detail}", highlight=False)
+        console.print(f"{pad}   {icon}  [bold]{label}[/bold]       {detail}", highlight=False, soft_wrap=True)
     console.print()
 
 
@@ -99,8 +99,9 @@ def print_step(current: int, total: int, title: str) -> None:
     pad = content_pad()
     w = _adaptive_width() - 6
     title_plain = f" {title} {_DOT} Step {current}/{total} "
-    side = max(1, (w - len(title_plain)) // 2)
-    right = max(1, w - len(title_plain) - side)
+    title_len = len(title_plain)  # plain ASCII, no markup — len() is correct here
+    side = max(1, (w - title_len) // 2)
+    right = max(1, w - title_len - side)
     left_line = _hline(side)
     right_line = _hline(right)
     console.print()

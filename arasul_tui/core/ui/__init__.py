@@ -10,8 +10,7 @@ from __future__ import annotations
 
 # dashboard.py — dashboard, headers, prompt
 from arasul_tui.core.ui.dashboard import (
-    LOGO_COMPACT,
-    LOGO_LARGE,
+    LOGO,
     build_prompt,
     get_default_interface,
     print_header,
@@ -25,6 +24,7 @@ from arasul_tui.core.ui.output import (
     _frame_left_pad,
     console,
     content_pad,
+    content_width,
     print_error,
     print_info,
     print_result,
@@ -32,6 +32,7 @@ from arasul_tui.core.ui.output import (
     print_success,
     print_warning,
     spinner_run,
+    truncate,
 )
 
 # panels.py — styled display components
@@ -50,6 +51,7 @@ __all__ = [
     "_frame_left_pad",
     "console",
     "content_pad",
+    "content_width",
     "print_error",
     "print_info",
     "print_result",
@@ -57,6 +59,7 @@ __all__ = [
     "print_success",
     "print_warning",
     "spinner_run",
+    "truncate",
     # panels
     "print_checklist",
     "print_kv",
@@ -64,8 +67,7 @@ __all__ = [
     "print_step",
     "print_styled_panel",
     # dashboard
-    "LOGO_COMPACT",
-    "LOGO_LARGE",
+    "LOGO",
     "build_prompt",
     "get_default_interface",
     "print_header",

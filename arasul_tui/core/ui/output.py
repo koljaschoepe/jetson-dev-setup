@@ -77,6 +77,18 @@ def _adaptive_width() -> int:
     return max(MIN_WIDTH, min(console.width - 2, MAX_WIDTH))
 
 
+def content_width() -> int:
+    """Usable character width inside a panel (after borders + padding)."""
+    return _adaptive_width() - 10
+
+
+def truncate(text: str, max_len: int, suffix: str = "\u2026") -> str:
+    """Truncate plain text to max_len, adding suffix if shortened."""
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - len(suffix)] + suffix
+
+
 # ---------------------------------------------------------------------------
 # Print functions
 # ---------------------------------------------------------------------------

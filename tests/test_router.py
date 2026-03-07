@@ -59,6 +59,7 @@ def test_registry_has_all_commands():
         "logins",
         "security",
         "mcp",
+        "expose",
         "n8n",
         "tailscale",
     }
@@ -67,7 +68,7 @@ def test_registry_has_all_commands():
 
 
 def test_registry_command_count():
-    assert len(REGISTRY.names()) == 22
+    assert len(REGISTRY.names()) == 23
 
 
 def test_slash_only(state: TuiState):

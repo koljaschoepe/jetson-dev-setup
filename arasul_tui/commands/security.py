@@ -4,9 +4,11 @@ from arasul_tui.core.security import list_ssh_keys, recent_logins, security_audi
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
+    content_width,
     print_checklist,
     print_info,
     print_styled_panel,
+    truncate,
 )
 
 # ---------------------------------------------------------------------------
@@ -21,10 +23,11 @@ def cmd_keys(state: TuiState, _: list[str]) -> CommandResult:
         print_info("No SSH keys found in ~/.ssh/")
         return CommandResult(ok=True, style="silent")
 
+    cw = content_width()
     rows: list[tuple[str, str]] = []
     for key in keys:
         label = key.type.replace("ssh-", "")
-        detail = key.comment or key.path
+        detail = truncate(key.comment or key.path, cw)
         if key.bits:
             label += f" ({key.bits})"
         rows.append((label, detail))
@@ -40,14 +43,15 @@ def cmd_keys(state: TuiState, _: list[str]) -> CommandResult:
 
 def cmd_logins(state: TuiState, _: list[str]) -> CommandResult:
     """Show recent SSH logins."""
+    cw = content_width()
     lines = recent_logins()
     rows: list[tuple[str, str]] = []
     for line in lines:
         parts = line.split(None, 2)
         if len(parts) >= 2:
-            rows.append((parts[0], " ".join(parts[1:])))
+            rows.append((parts[0], truncate(" ".join(parts[1:]), cw)))
         else:
-            rows.append((line, ""))
+            rows.append((truncate(line, cw), ""))
 
     print_styled_panel("Recent Logins", rows)
     return CommandResult(ok=True, style="silent")

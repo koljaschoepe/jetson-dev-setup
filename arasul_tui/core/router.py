@@ -11,6 +11,7 @@ from arasul_tui.commands import (
     cmd_delete,
     cmd_docker,
     cmd_exit,
+    cmd_expose,
     cmd_git,
     cmd_health,
     cmd_help,
@@ -239,6 +240,22 @@ def build_registry() -> CommandRegistry:
             aliases=["workflows", "automation"],
             subcommands={
                 "stop": "Stop containers",
+            },
+        )
+    )
+
+    # Expose
+    reg.register(
+        CommandSpec(
+            "expose",
+            cmd_expose,
+            "Public URL (Funnel)",
+            category="Network",
+            aliases=["funnel", "public url", "make public"],
+            subcommands={
+                "status": "Funnel status",
+                "on": "Start public URL",
+                "off": "Stop public URL",
             },
         )
     )

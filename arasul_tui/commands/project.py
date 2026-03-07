@@ -10,16 +10,27 @@ from arasul_tui.core.projects import (
     unregister_project,
 )
 from arasul_tui.core.state import TuiState
+from arasul_tui.core.templates import (
+    TEMPLATES,
+    create_conda_env,
+    get_template,
+    install_miniforge,
+    is_miniforge_installed,
+    list_templates,
+    scaffold_project,
+)
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
     console,
     content_pad,
+    content_width,
     print_error,
     print_info,
     print_styled_panel,
     print_success,
     print_warning,
     spinner_run,
+    truncate,
 )
 
 
@@ -124,9 +135,129 @@ def _create_finish(state: TuiState, user_input: str) -> CommandResult:
     return CommandResult(ok=True, style="silent", refresh=True)
 
 
+def _create_template(state: TuiState, name: str, template_name: str) -> CommandResult:
+    """Create a project with a template (conda env + starter files)."""
+    template = get_template(template_name)
+    if not template:
+        valid = ", ".join(f"[bold]{t}[/bold]" for t in TEMPLATES)
+        print_error(f"Unknown template: [bold]{template_name}[/bold]")
+        print_info(f"Available: {valid}")
+        return CommandResult(ok=False, style="silent")
+
+    root = _project_root(state)
+    if not root:
+        print_error(f"Project root not writable: {state.project_root}")
+        return CommandResult(ok=False, style="silent")
+    target = (root / name).resolve()
+    path_err = _validate_project_path(target, root)
+    if path_err:
+        print_error(path_err)
+        return CommandResult(ok=False, style="silent")
+    if target.exists():
+        print_error(f"Project already exists: {target}")
+        return CommandResult(ok=False, style="silent")
+
+    # Step 1: Install Miniforge3 if needed
+    if not is_miniforge_installed():
+        print_info("Miniforge3 not found. Installing (one-time setup)...")
+        ok, msg = spinner_run(
+            "Installing Miniforge3...",
+            lambda: install_miniforge(),
+        )
+        if not ok:
+            print_error(f"Miniforge3 install failed: {msg}")
+            return CommandResult(ok=False, style="silent")
+        print_success("Miniforge3 installed")
+
+    # Step 2: Create project directory
+    target.mkdir(parents=True, exist_ok=False)
+
+    # Step 3: Scaffold template files
+    print_info(f"Template: [bold]{template.label}[/bold]")
+    ok, msg = scaffold_project(target, name, template)
+    if not ok:
+        print_error(f"Scaffold failed: {msg}")
+        shutil.rmtree(target, ignore_errors=True)
+        return CommandResult(ok=False, style="silent")
+
+    # Step 4: Create conda environment
+    def _do_env() -> tuple[bool, str]:
+        return create_conda_env(name, template)
+
+    try:
+        ok, msg = spinner_run(
+            f"Creating conda env [bold]{name}[/bold]...",
+            _do_env,
+        )
+    except Exception as exc:
+        print_error(f"Environment creation failed: {exc}")
+        shutil.rmtree(target, ignore_errors=True)
+        return CommandResult(ok=False, style="silent")
+
+    if not ok:
+        print_error(f"Environment creation failed: {msg}")
+        print_warning("Project dir created but env is missing. Fix manually or delete.")
+        # Still register — user might want to fix it
+    else:
+        print_success("conda environment ready")
+
+    # Step 5: Register
+    register_project(name=name, path=target, provider_default="claude")
+    state.active_project = target
+
+    console.print()
+    print_success(f"Project [bold]{name}[/bold] created ({template.label})")
+    print_info(f"Path: [dim]{target}[/dim]")
+    print_info(f"Env: [dim]/mnt/nvme/envs/{name}[/dim]")
+    print_info("Press [bold]c[/bold] to open in Claude Code")
+    return CommandResult(ok=True, style="silent", refresh=True)
+
+
 def cmd_create(state: TuiState, args: list[str]) -> CommandResult:
-    if args:
-        return _create_finish(state, args[0])
+    # Parse --type flag
+    template_name = None
+    remaining_args = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--type" and i + 1 < len(args):
+            template_name = args[i + 1]
+            i += 2
+        else:
+            remaining_args.append(args[i])
+            i += 1
+
+    # Template creation: /create name --type template
+    if template_name and remaining_args:
+        name = remaining_args[0].strip().replace(" ", "-")
+        if not _is_safe_name(name):
+            print_error("Invalid project name.")
+            return CommandResult(ok=False, style="silent")
+        return _create_template(state, name, template_name)
+
+    # Template but no name: ask for name, then create with template
+    if template_name:
+        state._wizard["template_name"] = template_name
+
+        def _create_template_finish(state: TuiState, user_input: str) -> CommandResult:
+            tpl = state._wizard.pop("template_name", None)
+            name = user_input.strip().replace(" ", "-")
+            if not _is_safe_name(name):
+                print_error("Invalid project name.")
+                return CommandResult(ok=False, style="silent")
+            return _create_template(state, name, tpl)
+
+        print_info("What should the new project be called?")
+        return CommandResult(
+            ok=True,
+            style="silent",
+            prompt="Name",
+            pending_handler=_create_template_finish,
+            wizard_step=(1, 1, "Project"),
+        )
+
+    # Regular creation (unchanged)
+    if remaining_args:
+        return _create_finish(state, remaining_args[0])
     print_info("What should the new project be called?")
     return CommandResult(
         ok=True,
@@ -326,6 +457,7 @@ def cmd_info(state: TuiState, args: list[str]) -> CommandResult:
         print_warning("No active project. Open one first, then try [bold]info[/bold].")
         return CommandResult(ok=False, style="silent")
 
+    cw = content_width()
     git = get_git_info(target)
     rows: list[tuple[str, str]] = [("Name", target.name)]
 
@@ -336,22 +468,23 @@ def cmd_info(state: TuiState, args: list[str]) -> CommandResult:
         rows.append(("Branch", branch_str))
         rows.append(("Status", "[yellow]modified[/yellow]" if git.is_dirty else "[green]clean[/green]"))
         if git.short_hash:
-            rows.append(("Commit", f"{git.short_hash} {git.commit_message}"))
+            msg = truncate(git.commit_message, cw - 10)
+            rows.append(("Commit", f"{git.short_hash} {msg}"))
         if git.commit_time:
             rows.append(("Time", git.commit_time))
         if git.remote_url:
-            rows.append(("Remote", git.remote_url))
+            rows.append(("Remote", truncate(git.remote_url, cw)))
 
     headline = get_readme_headline(target)
     if headline:
-        rows.append(("About", headline))
+        rows.append(("About", truncate(headline, cw)))
     lang = detect_language(target)
     if lang:
         rows.append(("Lang", lang))
     disk = get_disk_usage(target)
     if disk:
         rows.append(("Disk", disk))
-    rows.append(("Path", str(target)))
+    rows.append(("Path", truncate(str(target), cw)))
 
     print_styled_panel(target.name, rows)
     return CommandResult(ok=True, style="silent")
@@ -372,17 +505,19 @@ def cmd_repos(state: TuiState, _: list[str]) -> CommandResult:
         print_warning("No projects found.")
         return CommandResult(ok=False, style="silent")
 
+    cw = content_width()
     rows: list[tuple[str, str]] = []
     for p in projects:
         git = get_git_info(p)
         if git:
-            branch = git.branch or "?"
+            branch = truncate(git.branch or "?", 20)
             status = "[yellow]*[/yellow]" if git.is_dirty else "[green]✓[/green]"
             info = f"{branch} {status}  {git.commit_time}"
         else:
             info = "[dim]local[/dim]"
         active = " [cyan]←[/cyan]" if state.active_project and state.active_project.name == p.name else ""
-        rows.append((p.name + active, info))
+        name = truncate(p.name, 28) + active
+        rows.append((name, info))
 
     print_styled_panel("Projects", rows)
     return CommandResult(ok=True, style="silent")

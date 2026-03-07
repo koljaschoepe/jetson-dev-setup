@@ -31,6 +31,8 @@ from arasul_tui.core.ui.output import (
     console,
     content_pad,
 )
+from rich.text import Text
+
 from arasul_tui.core.ui.panels import _bar, _vis_len
 
 if TYPE_CHECKING:
@@ -41,17 +43,7 @@ if TYPE_CHECKING:
 # Logo
 # ---------------------------------------------------------------------------
 
-LOGO_LARGE = [
-    "   \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588    \u2588\u2588\u2588\u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588      \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588      \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588   \u2588\u2588  \u2588\u2588  \u2588\u2588   \u2588\u2588   \u2588\u2588      \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588      \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
-    "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588\u2588\u2588\u2588    \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588",
-]
-
-LOGO_COMPACT = [
+LOGO = [
     "  \u2584\u2580\u2588 \u2588\u2580\u2588 \u2584\u2580\u2588 \u2588\u2580\u2580 \u2588 \u2588 \u2588  ",
     "  \u2588\u2580\u2588 \u2588\u2580\u2584 \u2588\u2580\u2588 \u2584\u2588 \u2588\u2584\u2588 \u2588\u2584\u2584",
 ]
@@ -237,10 +229,22 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
 
     def _box_row_closed(content: str) -> str:
         vis = _vis_len(content)
+        if vis > box_w:
+            # Truncate plain text portions to fit
+            t = Text.from_markup(content)
+            t.truncate(box_w - 1)
+            content = t.markup + "\u2026"
+            vis = _vis_len(content)
         pad_n = max(0, box_w - vis)
         return f"  [{DIM}]{_vline}[/{DIM}]{content}{' ' * pad_n}[{DIM}]{_vline}[/{DIM}]"
 
     def _metric_row(label: str, bar: str, detail: str) -> str:
+        # Calculate available space for detail after label + bar + spacing
+        bar_vis = _vis_len(bar)
+        used = 2 + 5 + bar_vis + 2  # "  " + label(5) + bar + "  "
+        avail = box_w - used
+        if len(detail) > avail:
+            detail = detail[: avail - 1] + "\u2026"
         return _box_row_closed(f"  {label:<5}{bar}  [{DIM}]{detail}[/{DIM}]")
 
     def _empty_row() -> str:
@@ -268,6 +272,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     if docker and docker != "0":
         svc_parts.append(f"Docker: {docker}")
     svc_line = dot_sep.join(svc_parts)
+    # _box_row_closed handles truncation if too wide
     lines.append(_box_row_closed(f"  [{DIM}]{svc_line}[/{DIM}]"))
 
     lines.append(box_bot)
@@ -278,11 +283,15 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     lines.append("")
 
     projects = project_list()
+    max_line = content_w - 2  # usable width for project lines
     for i, name in enumerate(projects, 1):
         branch, commit_time, is_dirty = _project_detail(name)
+        # Truncate long project names
+        disp_name = name if len(name) <= 28 else name[:27] + "\u2026"
         parts: list[str] = []
         if branch:
-            branch_str = f"[{DIM}]{branch}[/{DIM}]"
+            disp_branch = branch if len(branch) <= 20 else branch[:19] + "\u2026"
+            branch_str = f"[{DIM}]{disp_branch}[/{DIM}]"
             if is_dirty:
                 parts.append(f"{branch_str} [{WARNING}]*[/{WARNING}]")
             else:
@@ -290,7 +299,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
         if commit_time:
             parts.append(f"[{DIM}]{commit_time}[/{DIM}]")
         detail = "  ".join(parts) if parts else f"[{DIM}]local[/{DIM}]"
-        lines.append(f"  [{PRIMARY}]{i}[/{PRIMARY}]  {name}  {detail}")
+        lines.append(f"  [{PRIMARY}]{i}[/{PRIMARY}]  {disp_name}  {detail}")
 
     if not projects:
         lines.append(f"  [{DIM}]No projects yet.[/{DIM}]")
@@ -320,7 +329,7 @@ def _print_header_full(state: TuiState) -> None:
     console.print()
 
     animate = state.first_run
-    for i, line in enumerate(LOGO_LARGE):
+    for i, line in enumerate(LOGO):
         color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
         console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
         if animate:
@@ -338,7 +347,7 @@ def _print_header_medium(state: TuiState) -> None:
     pad = content_pad()
 
     console.print()
-    for i, line in enumerate(LOGO_COMPACT):
+    for i, line in enumerate(LOGO):
         color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
         console.print(f"{pad}{line}", style=f"bold {color}", highlight=False)
     dashboard = _build_full_dashboard(state, content_w)

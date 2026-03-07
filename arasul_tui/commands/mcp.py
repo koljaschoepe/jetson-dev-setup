@@ -5,10 +5,12 @@ from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
+    content_width,
     print_error,
     print_info,
     print_styled_panel,
     print_success,
+    truncate,
 )
 
 
@@ -23,11 +25,12 @@ def cmd_mcp(state: TuiState, args: list[str]) -> CommandResult:
             print_info("No MCP servers configured.")
             return CommandResult(ok=True, style="silent")
 
+        cw = content_width()
         rows: list[tuple[str, str]] = []
         for name, config in servers.items():
             cmd = config.get("command", "?")
             cmd_args = " ".join(config.get("args", []))
-            rows.append((name, f"{cmd} {cmd_args}"))
+            rows.append((name, truncate(f"{cmd} {cmd_args}", cw)))
 
         print_styled_panel("MCP Servers", rows)
         return CommandResult(ok=True, style="silent")
