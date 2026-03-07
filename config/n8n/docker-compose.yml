@@ -55,7 +55,7 @@ services:
       - NODE_OPTIONS=--max-old-space-size=1024
       - NODES_EXCLUDE=["n8n-nodes-base.executeCommand","n8n-nodes-base.localFileTrigger","n8n-nodes-base.readWriteFile"]
     ports:
-      - "${N8N_BIND_ADDRESS:-0.0.0.0}:5678:5678"
+      - "127.0.0.1:5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
       - /mnt/nvme/n8n/workflows:/home/node/workflows
