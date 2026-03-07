@@ -11,6 +11,9 @@ Only subcommand: /n8n stop
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from arasul_tui.core.n8n_client import (
     N8N_BASE_URL,
     N8N_DIR,
@@ -109,10 +112,25 @@ def _smart_flow(state: TuiState) -> CommandResult:
             print_error("sudo not available.")
             return CommandResult(ok=False, style="silent")
 
-        print_info("Installing n8n + PostgreSQL...")
+        # Resolve absolute path to setup script
+        repo_root = Path(__file__).parent.parent.parent
+        setup_script = repo_root / "scripts" / "09-n8n-setup.sh"
+        if not setup_script.exists():
+            print_error(f"Setup script not found: {setup_script}")
+            return CommandResult(ok=False, style="silent")
+
+        # The script needs NVME_MOUNT, REAL_USER, and SCRIPT_DIR
+        real_user = os.environ.get("USER") or os.environ.get("LOGNAME", "")
+        env_vars = (
+            f'NVME_MOUNT=/mnt/nvme REAL_USER={real_user} SCRIPT_DIR="{repo_root}"'
+        )
+
+        print_info("Installing n8n + PostgreSQL (this may take a few minutes)...")
 
         def _run_setup() -> str:
-            return run_cmd("sudo bash scripts/09-n8n-setup.sh 2>&1", timeout=300)
+            return run_cmd(
+                f"sudo {env_vars} bash {setup_script} 2>&1", timeout=600
+            )
 
         try:
             output = spinner_run("Installing n8n...", _run_setup)
