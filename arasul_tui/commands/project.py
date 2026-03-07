@@ -52,9 +52,9 @@ def cmd_open(state: TuiState, args: list[str]) -> CommandResult:
         names = [p.name for p in _project_dirs(root)]
         if not names:
             print_warning("No projects found.")
-            print_info("Create one with [bold]n[/bold] or [bold]/create[/bold]")
+            print_info("Type [bold]new[/bold] to create one, or [bold]clone[/bold] to grab a repo.")
             return CommandResult(ok=False, style="silent")
-        print_info("Usage: [bold]/open <name>[/bold] or select by number")
+        print_info("Type a project name or number to open it.")
         return CommandResult(ok=False, style="silent")
 
     name = args[0]
@@ -306,7 +306,7 @@ def cmd_info(state: TuiState, args: list[str]) -> CommandResult:
     elif state.active_project:
         target = state.active_project
     else:
-        print_warning("No active project. Use [bold]/info <name>[/bold]")
+        print_warning("No active project. Open one first, then try [bold]info[/bold].")
         return CommandResult(ok=False, style="silent")
 
     git = get_git_info(target)

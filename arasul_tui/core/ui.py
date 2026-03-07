@@ -343,10 +343,13 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
         lines.append(f"  [{PRIMARY}]{i}[/{PRIMARY}]  {name}  {detail}")
 
     if not projects:
-        lines.append(f"  [{DIM}]No projects yet. Type 'new' to create one.[/{DIM}]")
+        lines.append(f"  [{DIM}]No projects yet. Type 'new' to create one, or 'clone' to grab a repo.[/{DIM}]")
 
     lines.append("")
-    lines.append(f"  [{DIM}]Type a command or project name. Try 'help'.[/{DIM}]")
+    if projects:
+        lines.append(f"  [{DIM}]Open a project by name or number. Try 'status', 'new', or 'help'.[/{DIM}]")
+    else:
+        lines.append(f"  [{DIM}]Type what you need — 'help' shows everything.[/{DIM}]")
 
     return lines
 
@@ -454,14 +457,18 @@ def _print_project_screen(state: TuiState) -> None:
         detail_line = f"  {_DOT}  ".join(detail_parts)
         console.print(f"{pad}  [{DIM}]{detail_line}[/{DIM}]", highlight=False)
 
-    # Shortcuts
+    # Contextual hints
+    hints: list[str] = []
+    hints.append(f"[{PRIMARY}]claude[/{PRIMARY}] to start coding")
+    if gi and gi.is_dirty:
+        hints.append(f"[{PRIMARY}]push[/{PRIMARY}] to save changes")
+    elif gi:
+        hints.append(f"[{PRIMARY}]pull[/{PRIMARY}] to sync")
+    else:
+        hints.append(f"[{PRIMARY}]git[/{PRIMARY}] to set up version control")
+    hints.append(f"[{PRIMARY}]back[/{PRIMARY}] to return")
     console.print()
-    console.print(
-        f"{pad}  [{DIM}][{PRIMARY}]c[/{PRIMARY}] Claude  "
-        f"[{PRIMARY}]g[/{PRIMARY}] lazygit  "
-        f"[{PRIMARY}]b[/{PRIMARY}] back[/{DIM}]",
-        highlight=False,
-    )
+    console.print(f"{pad}  [{DIM}]{f'  {_DOT}  '.join(hints)}[/{DIM}]", highlight=False)
     console.print()
 
 

@@ -309,44 +309,42 @@ def run() -> None:
                 print_warning(f"No project with number [bold]{num}[/bold].")
                 continue
 
-        # --- Shortcut: b (back to main) ---
-        if command.lower() == "b":
-            state.active_project = None
-            state.screen = Screen.MAIN
-            print_info("Back to main.")
+        # --- Back to main screen ---
+        if command.lower() in ("b", "back", "home", "main"):
+            if state.active_project:
+                state.active_project = None
+                state.screen = Screen.MAIN
+                print_header(state, full=True)
             continue
 
-        # --- Single-letter shortcuts (c/g) when project is active ---
-        if len(command) == 1 and command.lower() in ("c", "g") and state.active_project:
-            key = command.lower()
+        # --- Launch shortcuts when project is active ---
+        if state.active_project and command.lower() in ("g", "lazygit"):
+            if not shutil.which("lazygit"):
+                from arasul_tui.core.ui import print_error
 
-            if key == "g":
-                if not shutil.which("lazygit"):
-                    from arasul_tui.core.ui import print_error
+                print_error("[bold]lazygit[/bold] is not installed.")
+                continue
+            print_info(f"Starting [bold]lazygit[/bold] in [dim]{state.active_project.name}[/dim] ...")
+            launch_request = ("lazygit", state.active_project)
+            break
 
-                    print_error("[bold]lazygit[/bold] is not installed.")
-                    continue
-                print_info(f"Starting [bold]lazygit[/bold] in [dim]{state.active_project.name}[/dim] ...")
-                launch_request = ("lazygit", state.active_project)
-                break
+        if state.active_project and command.lower() == "c":
+            from arasul_tui.core.auth import is_claude_configured
 
-            if key == "c":
-                from arasul_tui.core.auth import is_claude_configured
+            if not is_claude_configured():
+                result = run_command(state, "/claude")
+                _handle_result(result)
+                continue
 
-                if not is_claude_configured():
-                    result = run_command(state, "/claude")
-                    _handle_result(result)
-                    continue
+            if not shutil.which("claude"):
+                from arasul_tui.core.ui import print_error
 
-                if not shutil.which("claude"):
-                    from arasul_tui.core.ui import print_error
+                print_error("[bold]claude[/bold] is not installed.")
+                continue
 
-                    print_error("[bold]claude[/bold] is not installed.")
-                    continue
-
-                print_info(f"Starting [bold]Claude Code[/bold] in [dim]{state.active_project.name}[/dim] ...")
-                launch_request = ("claude", state.active_project)
-                break
+            print_info(f"Starting [bold]Claude Code[/bold] in [dim]{state.active_project.name}[/dim] ...")
+            launch_request = ("claude", state.active_project)
+            break
 
         # --- Slash commands (direct) ---
         if command.startswith("/"):

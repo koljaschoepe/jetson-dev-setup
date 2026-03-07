@@ -81,19 +81,11 @@ def _help_main(pad: str) -> None:
 
     # Quick start
     rows = [
-        "Just type what you want. No slash needed.",
-        f"[{DIM}]Examples: status, new, health, clone, docker[/{DIM}]",
-        f"[{DIM}]Tab for autocomplete. Type a project name to open it.[/{DIM}]",
+        "Just type what you want — no slash needed.",
+        f"[{DIM}]Open a project by name or number (1, 2, 3, ...).[/{DIM}]",
+        f"[{DIM}]Tab autocompletes. Try: status, new, clone, help.[/{DIM}]",
     ]
     _box("Quick Start", rows, pad)
-    console.print()
-
-    # Shortcuts
-    rows = [
-        f"[{PRIMARY}]1-9[/{PRIMARY}]  Select project    [{PRIMARY}]n[/{PRIMARY}]  New project",
-        f"[{PRIMARY}]d[/{PRIMARY}]    Delete project    [{PRIMARY}]b[/{PRIMARY}]  Back to overview",
-    ]
-    _box("Shortcuts", rows, pad)
     console.print()
 
     # Commands by category
@@ -123,35 +115,29 @@ def _help_project(pad: str) -> None:
     """Context-aware help when a project is open."""
     console.print()
 
-    # Project shortcuts first
+    # Project actions
     rows = [
-        f"[{PRIMARY}]c[/{PRIMARY}]  Start Claude Code in this project",
-        f"[{PRIMARY}]g[/{PRIMARY}]  Open lazygit for this project",
-        f"[{PRIMARY}]b[/{PRIMARY}]  Back to project overview",
+        f"[{PRIMARY}]claude[/{PRIMARY}]    Start Claude Code here",
+        f"[{PRIMARY}]lazygit[/{PRIMARY}]   Visual git interface",
+        f"[{PRIMARY}]info[/{PRIMARY}]      Project details",
+        f"[{PRIMARY}]pull[/{PRIMARY}]      Pull latest changes",
+        f"[{PRIMARY}]push[/{PRIMARY}]      Push changes",
+        f"[{PRIMARY}]git log[/{PRIMARY}]   Recent commits",
+        f"[{PRIMARY}]delete[/{PRIMARY}]    Delete this project",
+        f"[{PRIMARY}]back[/{PRIMARY}]      Return to overview",
     ]
-    _box("Project Shortcuts", rows, pad)
-    console.print()
-
-    # Project commands
-    rows = [
-        f"[{PRIMARY}]info[/{PRIMARY}]     Project details",
-        f"[{PRIMARY}]pull[/{PRIMARY}]     Pull latest changes",
-        f"[{PRIMARY}]push[/{PRIMARY}]     Push changes",
-        f"[{PRIMARY}]git log[/{PRIMARY}]  Recent commits",
-        f"[{PRIMARY}]delete[/{PRIMARY}]   Delete this project",
-    ]
-    _box("Project Commands", rows, pad)
+    _box("In This Project", rows, pad)
     console.print()
 
     # Other commands (compact)
     rows = [
         f"[{PRIMARY}]status[/{PRIMARY}]  System  {_DOT}  [{PRIMARY}]health[/{PRIMARY}]  Diagnostics  {_DOT}  [{PRIMARY}]docker[/{PRIMARY}]  Containers",
-        f"[{PRIMARY}]repos[/{PRIMARY}]   All projects  {_DOT}  [{PRIMARY}]help[/{PRIMARY}]  Full help",
+        f"[{PRIMARY}]repos[/{PRIMARY}]   All projects  {_DOT}  [{PRIMARY}]n8n[/{PRIMARY}]  Workflows  {_DOT}  [{PRIMARY}]help[/{PRIMARY}]  Full help",
     ]
     _box("Also Available", rows, pad)
     console.print()
 
-    console.print(f"{pad}[{DIM}]Type any command or 'b' to go back.[/{DIM}]", highlight=False)
+    console.print(f"{pad}[{DIM}]Just type what you need — everything works without slashes.[/{DIM}]", highlight=False)
     console.print()
 
 

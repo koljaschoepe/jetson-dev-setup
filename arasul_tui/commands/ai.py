@@ -24,7 +24,7 @@ from arasul_tui.core.ui import (
 def _launch_inline(state: TuiState, command: str) -> CommandResult:
     if not state.active_project:
         print_warning("No active project.")
-        print_info("Select one from the main screen or use [bold]/open <name>[/bold]")
+        print_info("Open a project first — type its name or number on the main screen.")
         return CommandResult(ok=False, style="silent")
     if not shutil.which(command):
         print_error(f"[bold]{command}[/bold] is not installed.")
@@ -111,7 +111,7 @@ def _wizard_step_account_info(state: TuiState, user_input: str) -> CommandResult
             print_success(f"Account: [bold]{email_val}[/bold]")
             print_success("Claude Code is configured!")
             console.print()
-            print_info("Run [bold]/claude[/bold] or press [bold]c[/bold] to start.")
+            print_info("Type [bold]claude[/bold] to start coding.")
             return CommandResult(ok=True, style="silent", refresh=True)
         except Exception:
             print_error("Invalid JSON. Please paste the full output.")
@@ -172,7 +172,7 @@ def _wizard_step_email(state: TuiState, user_input: str) -> CommandResult:
     console.print()
     print_success("Claude Code is configured!")
     console.print()
-    print_info("Run [bold]/claude[/bold] or press [bold]c[/bold] to start.")
+    print_info("Type [bold]claude[/bold] to start coding.")
     return CommandResult(ok=True, style="silent", refresh=True)
 
 
@@ -198,7 +198,7 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
         ok, msg = ensure_browser()
         if not ok:
             print_error(msg)
-            print_info("Install first with [bold]/browser install[/bold]")
+            print_info("Install first with [bold]browser install[/bold].")
             return CommandResult(ok=False, style="silent")
         pad = content_pad()
         print_info("SSH tunnel method — follow these steps:")
@@ -268,7 +268,7 @@ def cmd_auth(state: TuiState, _: list[str]) -> CommandResult:
     if is_claude_configured():
         rows.append(("Claude Code", "[green]✓[/green] configured"))
     else:
-        rows.append(("Claude Code", "[yellow]not configured[/yellow] — run [bold]/claude[/bold]"))
+        rows.append(("Claude Code", "[yellow]not configured[/yellow] — type [bold]claude[/bold]"))
 
     # GitHub
     gh_auth = run_cmd("gh auth status 2>&1", timeout=5)
@@ -276,7 +276,7 @@ def cmd_auth(state: TuiState, _: list[str]) -> CommandResult:
         account = parse_gh_account(gh_auth)
         rows.append(("GitHub", f"[green]✓[/green] {account}" if account else "[green]✓[/green] connected"))
     else:
-        rows.append(("GitHub", "[dim]not connected[/dim] — run [bold]/git[/bold]"))
+        rows.append(("GitHub", "[dim]not connected[/dim] — type [bold]git[/bold]"))
 
     # Browser/MCP
     from arasul_tui.core.browser import ensure_browser, is_mcp_configured
@@ -286,7 +286,7 @@ def cmd_auth(state: TuiState, _: list[str]) -> CommandResult:
         mcp = "[green]✓[/green] MCP active" if is_mcp_configured() else "[yellow]no MCP[/yellow]"
         rows.append(("Browser", f"[green]✓[/green] installed, {mcp}"))
     else:
-        rows.append(("Browser", "[dim]not installed[/dim] — run [bold]/browser install[/bold]"))
+        rows.append(("Browser", "[dim]not installed[/dim] — type [bold]browser install[/bold]"))
 
     print_styled_panel("Auth & Tools", rows)
     return CommandResult(ok=True, style="silent")

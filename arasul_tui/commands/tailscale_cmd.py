@@ -141,7 +141,7 @@ def _do_up() -> CommandResult:
                 break
         console.print()
         print_info("Open this URL in your browser to authenticate.")
-        print_info("Then run [bold]/tailscale[/bold] to check status.")
+        print_info("Then type [bold]tailscale[/bold] to check status.")
     elif _is_connected():
         ip = run_cmd("tailscale ip -4 2>/dev/null", timeout=5).strip()
         print_success(f"Connected: [bold]{ip}[/bold]")
