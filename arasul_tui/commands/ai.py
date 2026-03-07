@@ -65,7 +65,7 @@ def _wizard_step_token(state: TuiState, user_input: str) -> CommandResult:
     print_info("Now paste your account info (JSON or UUID).")
     console.print()
     console.print(f"{pad}[dim]Run this on your Mac:[/dim]", highlight=False)
-    cmd = 'cat ~/.claude.json | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get(\'oauthAccount\',{})))"'
+    cmd = "cat ~/.claude.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin).get('oauthAccount',{})))\""
     console.print(f"{pad}  [cyan]{cmd}[/cyan]", highlight=False, soft_wrap=True)
     console.print()
 

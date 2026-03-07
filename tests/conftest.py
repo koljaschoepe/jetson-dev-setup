@@ -5,13 +5,14 @@ from unittest.mock import patch
 
 import pytest
 
+from arasul_tui.core.router import REGISTRY
 from arasul_tui.core.state import TuiState
 
 
 @pytest.fixture(autouse=True)
 def _mock_console_width():
     """Ensure console.width returns a real int in tests (no terminal)."""
-    with patch("arasul_tui.core.ui.console") as mock_console:
+    with patch("arasul_tui.core.ui.output.console") as mock_console:
         mock_console.width = 100
         mock_console.print = lambda *a, **kw: None
         yield mock_console
@@ -27,8 +28,8 @@ def tmp_project_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def state(tmp_project_root: Path) -> TuiState:
-    """Provide a TuiState with a temporary project root."""
-    s = TuiState()
+    """Provide a TuiState with a temporary project root and registry."""
+    s = TuiState(registry=REGISTRY)
     s.project_root = tmp_project_root
     return s
 

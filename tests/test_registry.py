@@ -88,11 +88,15 @@ def test_resolve_alias():
 
 def test_resolve_subcommand_alias():
     reg = CommandRegistry()
-    reg.register(CommandSpec(
-        "git", _noop_handler, "Git",
-        aliases=["pull", "push"],
-        subcommands={"pull": "Pull", "push": "Push"},
-    ))
+    reg.register(
+        CommandSpec(
+            "git",
+            _noop_handler,
+            "Git",
+            aliases=["pull", "push"],
+            subcommands={"pull": "Pull", "push": "Push"},
+        )
+    )
     spec, args = reg.resolve("pull")
     assert spec is not None
     assert spec.name == "git"

@@ -16,7 +16,6 @@ N8N_BASE_URL = "http://localhost:5678"
 API_TIMEOUT = 5
 
 
-
 def n8n_is_installed() -> bool:
     """Check if n8n docker-compose stack exists on disk."""
     return N8N_COMPOSE.exists()
@@ -60,9 +59,7 @@ def n8n_health() -> dict[str, str]:
     return info
 
 
-def n8n_api_request(
-    method: str, endpoint: str, data: dict | None = None
-) -> dict | list | None:
+def n8n_api_request(method: str, endpoint: str, data: dict | None = None) -> dict | list | None:
     """Make a REST API call to n8n. Returns parsed JSON or None on failure."""
     api_key = n8n_get_api_key()
     if not api_key:

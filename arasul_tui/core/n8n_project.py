@@ -47,10 +47,7 @@ def scaffold_n8n_project(project_dir: Path, n8n_url: str | None = None) -> bool:
     else:
         # Minimal fallback if template is missing
         (project_dir / "CLAUDE.md").write_text(
-            f"# n8n Workflow Automation\n\n"
-            f"n8n Web-UI: {url}\n"
-            f"n8n API: {url}/api/v1\n"
-            f"Workflow backups: ./workflows/\n"
+            f"# n8n Workflow Automation\n\nn8n Web-UI: {url}\nn8n API: {url}/api/v1\nWorkflow backups: ./workflows/\n"
         )
 
     # .claude/settings.json (guardrails)
@@ -71,8 +68,6 @@ def scaffold_n8n_project(project_dir: Path, n8n_url: str | None = None) -> bool:
                 ]
             }
         }
-        (claude_dir / "settings.json").write_text(
-            json.dumps(settings, indent=2) + "\n"
-        )
+        (claude_dir / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
 
     return True

@@ -171,7 +171,7 @@ def _setup_run_step(state: TuiState, user_input: str) -> CommandResult:
 
     try:
         ok, output = spinner_run(f"Running {step.name}...", _run)
-    except Exception as exc:
+    except OSError as exc:
         print_error(f"Failed: {exc}")
         return CommandResult(ok=False, style="silent")
 

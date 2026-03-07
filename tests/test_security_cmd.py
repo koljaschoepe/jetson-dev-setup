@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from arasul_tui.commands.security import cmd_keys, cmd_logins, cmd_security
+from arasul_tui.core.router import REGISTRY
 from arasul_tui.core.security import AuditItem, SSHKey, list_ssh_keys, recent_logins, security_audit
+from arasul_tui.core.state import TuiState
 
 
 def test_ssh_key_dataclass():
@@ -64,6 +67,36 @@ def test_n8n_security_audit_not_installed():
         mock_env.exists.return_value = False
         items = _n8n_security_audit()
     assert items == []
+
+
+def _state() -> TuiState:
+    return TuiState(registry=REGISTRY)
+
+
+def test_cmd_keys_no_keys():
+    with patch("arasul_tui.commands.security.list_ssh_keys", return_value=[]):
+        result = cmd_keys(_state(), [])
+    assert result.ok is True
+
+
+def test_cmd_keys_with_keys():
+    keys = [SSHKey(type="ssh-ed25519", bits="256", fingerprint="SHA256:x", comment="me@host", path="/home/.ssh/id")]
+    with patch("arasul_tui.commands.security.list_ssh_keys", return_value=keys):
+        result = cmd_keys(_state(), [])
+    assert result.ok is True
+
+
+def test_cmd_logins():
+    with patch("arasul_tui.commands.security.recent_logins", return_value=["user1 tty1 2024-01-01"]):
+        result = cmd_logins(_state(), [])
+    assert result.ok is True
+
+
+def test_cmd_security():
+    items = [AuditItem(label="Test", detail="OK", status="ok")]
+    with patch("arasul_tui.commands.security.security_audit", return_value=items):
+        result = cmd_security(_state(), [])
+    assert result.ok is True
 
 
 def test_n8n_security_audit_with_env(tmp_path):

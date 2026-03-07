@@ -66,14 +66,14 @@ def test_write_token_overwrites(tmp_path: Path):
 
 def test_has_account_no_file(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
-    with patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert _has_account() is False
 
 
 def test_has_account_empty_json(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
     claude_json.write_text("{}", encoding="utf-8")
-    with patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert _has_account() is False
 
 
@@ -83,13 +83,13 @@ def test_has_account_valid(tmp_path: Path):
         json.dumps({"oauthAccount": {"accountUuid": "abc-123", "emailAddress": "test@example.com"}}),
         encoding="utf-8",
     )
-    with patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert _has_account() is True
 
 
 def test_write_account(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
-    with patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         _write_account("uuid-123", "test@example.com")
         data = json.loads(claude_json.read_text())
         assert data["oauthAccount"]["accountUuid"] == "uuid-123"
@@ -101,7 +101,7 @@ def test_is_claude_configured(tmp_path: Path):
     p1, p2, p3 = _auth_patches(tmp_path)
     claude_json = tmp_path / ".claude.json"
 
-    with p1, p2, p3, patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with p1, p2, p3, patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert is_claude_configured() is False
 
         token = f"{TOKEN_PREFIX}full-test-token"
@@ -124,5 +124,5 @@ def test_get_auth_env(tmp_path: Path):
 def test_has_account_corrupt_json(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
     claude_json.write_text("not valid json", encoding="utf-8")
-    with patch("arasul_tui.core.auth.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert _has_account() is False

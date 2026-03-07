@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
 
-from arasul_tui.core.constants import CLAUDE_JSON
+from arasul_tui.core.claude_json import load_claude_json, save_claude_json
 
 NVME_BROWSER_CACHE = Path("/mnt/nvme/playwright-browsers")
 FALLBACK_BROWSER_CACHE = Path.home() / ".cache" / "ms-playwright"
@@ -65,7 +64,7 @@ def browser_health() -> list[str]:
             import playwright
 
             lines.append(f"  Playwright: v{playwright.__version__}")
-        except Exception:
+        except (ImportError, AttributeError):
             lines.append("  Playwright: installed (version unknown)")
     else:
         lines.append("  Playwright: NOT installed")
@@ -82,7 +81,7 @@ def browser_health() -> list[str]:
         try:
             size_mb = sum(f.stat().st_size for f in cache.rglob("*") if f.is_file()) / (1024 * 1024)
             lines.append(f"  Cache size: {size_mb:.0f} MB")
-        except Exception:
+        except OSError:
             pass
 
     mcp_ok = is_mcp_configured()
@@ -124,7 +123,7 @@ def browser_test() -> tuple[bool, list[str]]:
         return False, [f"Browser test failed: {stderr}"]
     except subprocess.TimeoutExpired:
         return False, ["Browser test timeout (30s). Network or Chromium issue."]
-    except Exception as exc:
+    except OSError as exc:
         return False, [f"Browser test error: {exc}"]
 
 
@@ -164,19 +163,13 @@ def install_browser() -> tuple[bool, list[str]]:
 
 def is_mcp_configured() -> bool:
     """Check if Playwright MCP server is configured in claude.json."""
-    try:
-        data = json.loads(CLAUDE_JSON.read_text(encoding="utf-8"))
-        return "playwright" in data.get("mcpServers", {})
-    except (FileNotFoundError, json.JSONDecodeError):
-        return False
+    data = load_claude_json()
+    return "playwright" in data.get("mcpServers", {})
 
 
 def configure_mcp() -> tuple[bool, str]:
     """Add Playwright MCP server to claude.json."""
-    try:
-        data = json.loads(CLAUDE_JSON.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
+    data = load_claude_json()
 
     if "mcpServers" not in data:
         data["mcpServers"] = {}
@@ -189,5 +182,5 @@ def configure_mcp() -> tuple[bool, str]:
         },
     }
 
-    CLAUDE_JSON.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    save_claude_json(data)
     return True, "Playwright MCP server configured in ~/.claude.json."

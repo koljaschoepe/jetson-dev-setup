@@ -104,17 +104,26 @@ interactive_config() {
     read -rp "Install Arasul TUI? (true/false) [true]: " i_tui
     i_tui="${i_tui:-true}"
 
+    # Protect existing .env from accidental overwrite
+    if [[ -f "$env_file" ]]; then
+        cp "$env_file" "${env_file}.bak.$(date +%s)"
+        warn "Existing .env backed up"
+    fi
+
     cp "${SCRIPT_DIR}/.env.example" "$env_file"
-    # Use | as sed delimiter to avoid issues with / in user input
-    sed -i "s|CUSTOMER_NAME=\"CHANGEME\"|CUSTOMER_NAME=\"${i_customer//|/}\"|" "$env_file"
-    sed -i "s|JETSON_USER=\"CHANGEME\"|JETSON_USER=\"${i_user//|/}\"|" "$env_file"
-    sed -i "s|JETSON_HOSTNAME=\"jetson\"|JETSON_HOSTNAME=\"${i_hostname//|/}\"|" "$env_file"
-    sed -i "s|SWAP_SIZE=\"32G\"|SWAP_SIZE=\"${i_swap//|/}\"|" "$env_file"
-    sed -i "s|INSTALL_TAILSCALE=\"false\"|INSTALL_TAILSCALE=\"${i_tailscale//|/}\"|" "$env_file"
-    sed -i "s|GIT_USER_NAME=\"CHANGEME\"|GIT_USER_NAME=\"${i_git_name//|/}\"|" "$env_file"
-    sed -i "s|GIT_USER_EMAIL=\"CHANGEME\"|GIT_USER_EMAIL=\"${i_git_email//|/}\"|" "$env_file"
-    sed -i "s|INSTALL_CLAUDE=\"true\"|INSTALL_CLAUDE=\"${i_claude//|/}\"|" "$env_file"
-    sed -i "s|INSTALL_ARASUL_TUI=\"true\"|INSTALL_ARASUL_TUI=\"${i_tui//|/}\"|" "$env_file"
+
+    # Sanitise user input: strip characters that could break sed or shell quoting
+    _sanitise() { printf '%s' "$1" | tr -d '|"\\`$\n'; }
+
+    sed -i "s|CUSTOMER_NAME=\"CHANGEME\"|CUSTOMER_NAME=\"$(_sanitise "$i_customer")\"|" "$env_file"
+    sed -i "s|JETSON_USER=\"CHANGEME\"|JETSON_USER=\"$(_sanitise "$i_user")\"|" "$env_file"
+    sed -i "s|JETSON_HOSTNAME=\"jetson\"|JETSON_HOSTNAME=\"$(_sanitise "$i_hostname")\"|" "$env_file"
+    sed -i "s|SWAP_SIZE=\"32G\"|SWAP_SIZE=\"$(_sanitise "$i_swap")\"|" "$env_file"
+    sed -i "s|INSTALL_TAILSCALE=\"false\"|INSTALL_TAILSCALE=\"$(_sanitise "$i_tailscale")\"|" "$env_file"
+    sed -i "s|GIT_USER_NAME=\"CHANGEME\"|GIT_USER_NAME=\"$(_sanitise "$i_git_name")\"|" "$env_file"
+    sed -i "s|GIT_USER_EMAIL=\"CHANGEME\"|GIT_USER_EMAIL=\"$(_sanitise "$i_git_email")\"|" "$env_file"
+    sed -i "s|INSTALL_CLAUDE=\"true\"|INSTALL_CLAUDE=\"$(_sanitise "$i_claude")\"|" "$env_file"
+    sed -i "s|INSTALL_ARASUL_TUI=\"true\"|INSTALL_ARASUL_TUI=\"$(_sanitise "$i_tui")\"|" "$env_file"
 
     log ".env file created: ${env_file}"
     echo ""

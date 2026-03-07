@@ -21,6 +21,7 @@ class TuiState:
     project_root: Path = DEFAULT_PROJECT_ROOT
     first_run: bool = True
     screen: Screen = Screen.MAIN
+    registry: Any = field(default=None, repr=False)
 
     # Generic wizard state dict (replaces individual _wizard_* fields)
     _wizard: dict[str, Any] = field(default_factory=dict, repr=False)

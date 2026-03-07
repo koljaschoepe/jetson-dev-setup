@@ -173,11 +173,10 @@ def _git_wizard_auth_token(state: TuiState, user_input: str) -> CommandResult:
             wizard_step=(2, 3, "Token"),
         )
 
-    def _do_auth() -> subprocess.CompletedProcess:
+    def _do_auth() -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            "gh auth login --with-token",
+            ["gh", "auth", "login", "--with-token"],
             input=token,
-            shell=True,
             check=False,
             capture_output=True,
             text=True,
@@ -241,7 +240,9 @@ def _git_wizard_ssh_key(state: TuiState, user_input: str) -> CommandResult:
 
         result = spinner_run("Adding SSH key...", _do_add)
 
-        if "already" in result.lower() or not result:
+        if "error" in result.lower() or "failed" in result.lower():
+            print_warning(f"SSH key upload issue: [dim]{result[:150]}[/dim]")
+        elif "already" in result.lower() or not result:
             print_success("SSH key already registered on GitHub")
         else:
             print_success(f"SSH key added: [dim]arasul@{hostname}[/dim]")
@@ -287,10 +288,12 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
 
     sub = args[0].lower()
 
+    # All subcommands require an active project
+    if sub in ("pull", "push", "log", "status") and not state.active_project:
+        print_warning("No active project.")
+        return CommandResult(ok=False, style="silent")
+
     if sub == "pull":
-        if not state.active_project:
-            print_warning("No active project.")
-            return CommandResult(ok=False, style="silent")
         q = shlex.quote(str(state.active_project))
         output = run_cmd(f"git -C {q} pull 2>&1", timeout=30)
         if "Already up to date" in output:
@@ -304,9 +307,6 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
         return CommandResult(ok=True, style="silent")
 
     if sub == "push":
-        if not state.active_project:
-            print_warning("No active project.")
-            return CommandResult(ok=False, style="silent")
         q = shlex.quote(str(state.active_project))
         output = run_cmd(f"git -C {q} push 2>&1", timeout=30)
         if "error" in output.lower() or "fatal" in output.lower():
@@ -316,9 +316,6 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
         return CommandResult(ok=True, style="silent")
 
     if sub == "log":
-        if not state.active_project:
-            print_warning("No active project.")
-            return CommandResult(ok=False, style="silent")
         q = shlex.quote(str(state.active_project))
         output = run_cmd(f"git -C {q} log --oneline -10 2>/dev/null", timeout=5)
         if not output or output.startswith("Error"):
@@ -335,9 +332,6 @@ def cmd_git(state: TuiState, args: list[str]) -> CommandResult:
         return CommandResult(ok=True, style="silent")
 
     if sub == "status":
-        if not state.active_project:
-            print_warning("No active project.")
-            return CommandResult(ok=False, style="silent")
         q = shlex.quote(str(state.active_project))
         output = run_cmd(f"git -C {q} status --short 2>/dev/null", timeout=5)
         if not output:

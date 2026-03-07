@@ -40,10 +40,11 @@ def list_containers(all_containers: bool = False) -> list[Container]:
     return containers
 
 
-
 def docker_running_count() -> int:
     """Return number of running Docker containers."""
     out = run_cmd("docker ps -q 2>/dev/null | wc -l", timeout=5)
+    if not out or out.startswith("Error"):
+        return 0
     try:
         return int(out.strip())
     except (ValueError, AttributeError):

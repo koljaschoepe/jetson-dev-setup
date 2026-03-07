@@ -1,64 +1,46 @@
+"""Dashboard rendering: logo, system metrics, project list, headers."""
+
 from __future__ import annotations
 
 import shlex
-import threading
 import time
-from collections.abc import Callable
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-from rich import box
-from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
-from rich.spinner import Spinner
-from rich.table import Table
-from rich.text import Text
+from typing import TYPE_CHECKING
 
 from arasul_tui.core.cache import cached_cmd, parallel_cmds
 from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.theme import (
-    BAR_EMPTY,
-    BAR_FILLED,
     DIM,
-    ERROR,
-    ICON_ARROW,
-    ICON_DOT_OFF,
-    ICON_FAIL,
-    ICON_OK,
-    ICON_WARN,
     LOGO_GRADIENT,
     PRIMARY,
     SUCCESS,
     WARNING,
 )
+from arasul_tui.core.ui.output import (
+    _CHECK,
+    _DEG,
+    _DOT,
+    MAX_WIDTH,
+    TIER_FULL,
+    TIER_MEDIUM,
+    VERSION,
+    _adaptive_width,
+    _dim_hline,
+    _frame_left_pad,
+    _hline,
+    console,
+    content_pad,
+)
+from arasul_tui.core.ui.panels import _bar, _vis_len
 
 if TYPE_CHECKING:
     from arasul_tui.core.state import TuiState
-    from arasul_tui.core.types import CommandResult
 
-console = Console()
 
-try:
-    VERSION = f"v{pkg_version('arasul')}"
-except PackageNotFoundError:
-    VERSION = "v0.3.0"
+# ---------------------------------------------------------------------------
+# Logo
+# ---------------------------------------------------------------------------
 
-MAX_WIDTH = 84
-MIN_WIDTH = 50
-
-TIER_FULL = 78
-TIER_MEDIUM = 60
-
-# Box-drawing and separator characters (pre-built to avoid backslashes in f-strings)
-_HLINE = "\u2500"  # ─
-_DOT = "\u00b7"    # ·
-_DEG = "\u00b0"    # °
-_CHECK = "\u2713"  # ✓
-
-# 7-line block logo (large):
 LOGO_LARGE = [
     "   \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588    \u2588\u2588\u2588\u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588",
     "  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588   \u2588\u2588  \u2588\u2588      \u2588\u2588   \u2588\u2588  \u2588\u2588",
@@ -75,14 +57,9 @@ LOGO_COMPACT = [
 ]
 
 
-def _hline(n: int) -> str:
-    """Return n horizontal line characters."""
-    return _HLINE * n
-
-
-def _dim_hline(n: int) -> str:
-    """Return n dim horizontal line characters with Rich markup."""
-    return f"[{DIM}]{_hline(n)}[/{DIM}]"
+# ---------------------------------------------------------------------------
+# Data helpers
+# ---------------------------------------------------------------------------
 
 
 def _greeting(user: str) -> str:
@@ -130,11 +107,13 @@ def _system_info() -> dict[str, str]:
         ram = cached_cmd("free -m | awk '/^Mem:/{printf \"%dM / %dM\", $3, $2}'") or "n/a"
         ram_pct = 0
 
-    # Run all shell commands in parallel
     cmds = {
         "disk": ("df -h /mnt/nvme 2>/dev/null | awk 'NR==2{print $3\"/\"$2}'", 4),
         "disk_pct": ("df /mnt/nvme 2>/dev/null | awk 'NR==2{print $5}' | tr -d '%'", 4),
-        "temp": ("cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'", 4),
+        "temp": (
+            "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'",
+            4,
+        ),
         "power": ("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'", 4),
         "gpu": ("cat /sys/devices/gpu.0/load 2>/dev/null", 4),
         "ip": ("hostname -I 2>/dev/null | awk '{print $1}'", 4),
@@ -142,7 +121,6 @@ def _system_info() -> dict[str, str]:
     }
     r = parallel_cmds(cmds)
 
-    # Fallback for disk
     disk = r.get("disk", "")
     if not disk or disk.startswith("Error"):
         disk = cached_cmd("df -h / | awk 'NR==2{print $3\"/\"$2}'") or "n/a"
@@ -174,7 +152,7 @@ def project_list() -> list[str]:
 
     try:
         return sorted([p.name for p in DEFAULT_PROJECT_ROOT.iterdir() if p.is_dir()], key=str.lower)
-    except Exception:
+    except OSError:
         return []
 
 
@@ -187,11 +165,13 @@ def _project_detail(name: str) -> tuple[str, str, bool]:
         return ("", "", False)
     quoted = shlex.quote(str(project))
 
-    r = parallel_cmds({
-        "branch": (f"git -C {quoted} symbolic-ref --short HEAD 2>/dev/null", 4),
-        "dirty": (f"git -C {quoted} status --porcelain 2>/dev/null", 4),
-        "time": (f"git -C {quoted} log -1 --format=%cr 2>/dev/null", 4),
-    })
+    r = parallel_cmds(
+        {
+            "branch": (f"git -C {quoted} symbolic-ref --short HEAD 2>/dev/null", 4),
+            "dirty": (f"git -C {quoted} status --porcelain 2>/dev/null", 4),
+            "time": (f"git -C {quoted} log -1 --format=%cr 2>/dev/null", 4),
+        }
+    )
 
     branch = r.get("branch", "")
     dirty_out = r.get("dirty", "")
@@ -215,35 +195,9 @@ def _git_info_short(project: Path | None) -> str:
     return f"[dim]{host}[/dim]"
 
 
-def _adaptive_width() -> int:
-    """Calculate optimal panel width based on terminal size with margins."""
-    return max(MIN_WIDTH, min(console.width - 2, MAX_WIDTH))
-
-
-def _vis_len(s: str) -> int:
-    """Visible cell width of a string that may contain Rich markup."""
-    return Text.from_markup(s).cell_len
-
-
-def _pad_right(s: str, target: int) -> str:
-    """Pad a Rich markup string to target visible width with trailing spaces."""
-    diff = target - _vis_len(s)
-    return s + " " * diff if diff > 0 else s
-
-
-def _bar(pct: float, width: int = 10) -> str:
-    """Render a modern block bar like ▰▰▰▱▱▱▱▱ with color based on percentage."""
-    filled = int(round(pct / 100 * width))
-    empty = width - filled
-    if pct >= 90:
-        color = ERROR
-    elif pct >= 70:
-        color = WARNING
-    else:
-        color = PRIMARY
-    bar_filled = f"[{color}]{BAR_FILLED * filled}[/{color}]"
-    bar_empty = f"[{DIM}]{BAR_EMPTY * empty}[/{DIM}]"
-    return f"{bar_filled}{bar_empty}"
+# ---------------------------------------------------------------------------
+# Dashboard builder
+# ---------------------------------------------------------------------------
 
 
 def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
@@ -275,15 +229,13 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     _corner_tr = "\u256e"  # ╮
     _corner_bl = "\u2570"  # ╰
     _corner_br = "\u256f"  # ╯
-    _vline = "\u2502"      # │
+    _vline = "\u2502"  # │
 
     box_top = f"  [{DIM}]{_corner_tl}{_hline(box_w)}{_corner_tr}[/{DIM}]"
     box_bot = f"  [{DIM}]{_corner_bl}{_hline(box_w)}{_corner_br}[/{DIM}]"
     lines.append(box_top)
 
-    # System metrics inside box (with right border)
     def _box_row_closed(content: str) -> str:
-        """Box row with left+right │ borders, padded to box_w."""
         vis = _vis_len(content)
         pad_n = max(0, box_w - vis)
         return f"  [{DIM}]{_vline}[/{DIM}]{content}{' ' * pad_n}[{DIM}]{_vline}[/{DIM}]"
@@ -307,10 +259,8 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     if temp:
         lines.append(_metric_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
 
-    # Empty line between metrics and services
     lines.append(_empty_row())
 
-    # Status row inside box
     svc_parts: list[str] = []
     gh = _github_status()
     svc_parts.append(f"GitHub: {gh}")
@@ -356,9 +306,9 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     return lines
 
 
-def _sep_width() -> int:
-    """Separator width: just wide enough to cover content + small margin."""
-    return 50
+# ---------------------------------------------------------------------------
+# Header variants
+# ---------------------------------------------------------------------------
 
 
 def _print_header_full(state: TuiState) -> None:
@@ -369,7 +319,6 @@ def _print_header_full(state: TuiState) -> None:
 
     console.print()
 
-    # Logo with boot animation on first run
     animate = state.first_run
     for i, line in enumerate(LOGO_LARGE):
         color = LOGO_GRADIENT[i % len(LOGO_GRADIENT)]
@@ -432,13 +381,11 @@ def _print_project_screen(state: TuiState) -> None:
     lang = detect_language(project)
     disk = get_disk_usage(project)
 
-    # Git info
     if gi:
         branch_color = WARNING if gi.is_dirty else SUCCESS
         dirty_mark = f" [{WARNING}]*[/{WARNING}]" if gi.is_dirty else ""
         console.print(
-            f"{pad}  [{branch_color}]{gi.branch}[/{branch_color}]{dirty_mark}"
-            f"  [{DIM}]{gi.short_hash}[/{DIM}]",
+            f"{pad}  [{branch_color}]{gi.branch}[/{branch_color}]{dirty_mark}  [{DIM}]{gi.short_hash}[/{DIM}]",
             highlight=False,
         )
         if gi.commit_message:
@@ -449,7 +396,6 @@ def _print_project_screen(state: TuiState) -> None:
     else:
         console.print(f"{pad}  [{DIM}]no git[/{DIM}]", highlight=False)
 
-    # Language + disk
     detail_parts: list[str] = []
     if lang:
         detail_parts.append(lang)
@@ -459,7 +405,6 @@ def _print_project_screen(state: TuiState) -> None:
         detail_line = f"  {_DOT}  ".join(detail_parts)
         console.print(f"{pad}  [{DIM}]{detail_line}[/{DIM}]", highlight=False)
 
-    # Contextual hints
     hints: list[str] = []
     hints.append(f"[{PRIMARY}]claude[/{PRIMARY}] to start coding")
     if gi and gi.is_dirty:
@@ -475,10 +420,14 @@ def _print_project_screen(state: TuiState) -> None:
     console.print()
 
 
+# ---------------------------------------------------------------------------
+# Public header and prompt
+# ---------------------------------------------------------------------------
+
+
 def print_header(state: TuiState, full: bool = True) -> None:
     """Print header. full=True for startup dashboard, full=False for inline context."""
     if not full:
-        # Compact inline context indicator (used in chat-flow)
         pad = content_pad()
         w = _adaptive_width() - 6
         parts: list[str] = []
@@ -503,7 +452,6 @@ def print_header(state: TuiState, full: bool = True) -> None:
         )
         return
 
-    # Project screen: show project mini-dashboard
     if state.active_project:
         _print_project_screen(state)
         return
@@ -514,182 +462,6 @@ def print_header(state: TuiState, full: bool = True) -> None:
         _print_header_medium(state)
     else:
         _print_header_compact(state)
-
-
-def print_styled_panel(title: str, rows: list[tuple[str, str]]) -> None:
-    """Print a uniform styled panel with key-value rows."""
-    w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
-    table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
-    table.add_column(style="bold", no_wrap=True)
-    table.add_column()
-    for k, v in rows:
-        table.add_row(k, v)
-    p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
-    console.print(f"{lpad}", end="", highlight=False)
-    console.print(p, highlight=False)
-
-
-def print_checklist(title: str, items: list[tuple[str, str, str]]) -> None:
-    """Print a color-coded checklist. Items: (label, detail, status: ok/warn/fail)."""
-    pad = content_pad()
-    hline6 = _hline(6)
-    console.print()
-    console.print(f"{pad}[bold]{hline6} {title} {hline6}[/bold]", highlight=False)
-    console.print()
-    for label, detail, status in items:
-        if status == "ok":
-            icon = ICON_OK
-        elif status == "warn":
-            icon = ICON_WARN
-        else:
-            icon = ICON_FAIL
-        console.print(f"{pad}   {icon}  [bold]{label}[/bold]       {detail}", highlight=False)
-    console.print()
-
-
-def print_progress(title: str, items: list[tuple[str, bool]]) -> None:
-    """Print a progress checklist. Items: (label, done)."""
-    pad = content_pad()
-    console.print()
-    console.print(f"{pad}[bold]{title}[/bold]", highlight=False)
-    console.print()
-    for label, done in items:
-        icon = ICON_OK if done else ICON_DOT_OFF
-        style = "" if done else f"[{DIM}]"
-        end_style = "" if done else f"[/{DIM}]"
-        console.print(f"{pad}   {icon}  {style}{label}{end_style}", highlight=False)
-    console.print()
-
-
-def print_result(result: CommandResult) -> None:
-    if not result.lines:
-        return
-
-    style = getattr(result, "style", None)
-    pad = content_pad()
-
-    if style == "silent":
-        return
-
-    if style == "success":
-        for line in result.lines:
-            console.print(f"{pad}[{SUCCESS}]{line}[/{SUCCESS}]", highlight=False)
-    elif style == "error":
-        for line in result.lines:
-            console.print(f"{pad}[{ERROR}]{line}[/{ERROR}]", highlight=False)
-    elif style == "panel":
-        text = "\n".join(result.lines)
-        w = _adaptive_width() - 4
-        p = Panel(text, border_style="dim", box=box.ROUNDED, padding=(0, 2), width=w)
-        lpad = " " * _frame_left_pad()
-        console.print(f"{lpad}  ", end="", highlight=False)
-        console.print(p, highlight=False)
-    elif style == "wizard":
-        for line in result.lines:
-            console.print(f"{pad}{line}", highlight=False)
-    else:
-        ok = result.ok
-        for line in result.lines:
-            if not ok and line and not line.startswith(" "):
-                console.print(f"{pad}[{ERROR}]{line}[/{ERROR}]", highlight=False)
-            else:
-                console.print(f"{pad}{line}", highlight=False)
-
-
-def print_step(current: int, total: int, title: str) -> None:
-    pad = content_pad()
-    w = _adaptive_width() - 6
-    title_plain = f" {title} {_DOT} Step {current}/{total} "
-    side = max(1, (w - len(title_plain)) // 2)
-    right = max(1, w - len(title_plain) - side)
-    left_line = _hline(side)
-    right_line = _hline(right)
-    console.print()
-    console.print(
-        f"{pad}[{PRIMARY}]{left_line}[/{PRIMARY}]"
-        f" [bold]{title}[/bold] [{DIM}]{_DOT} Step {current}/{total}[/{DIM}] "
-        f"[{PRIMARY}]{right_line}[/{PRIMARY}]",
-        highlight=False,
-    )
-    console.print()
-
-
-def print_success(msg: str) -> None:
-    pad = content_pad()
-    console.print(f"{pad}{ICON_OK} {msg}", highlight=False)
-
-
-def print_error(msg: str) -> None:
-    pad = content_pad()
-    console.print(f"{pad}{ICON_FAIL} {msg}", highlight=False)
-
-
-def print_info(msg: str) -> None:
-    pad = content_pad()
-    console.print(f"{pad}{ICON_ARROW} {msg}", highlight=False)
-
-
-def print_warning(msg: str) -> None:
-    pad = content_pad()
-    console.print(f"{pad}[{WARNING}]![/{WARNING}] {msg}", highlight=False)
-
-
-def print_kv(data: list[tuple[str, str]], title: str | None = None) -> None:
-    w = _adaptive_width() - 4
-    lpad = " " * (_frame_left_pad() + 2)
-    table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
-    table.add_column(style="bold", no_wrap=True)
-    table.add_column()
-    for k, v in data:
-        table.add_row(k, v)
-    if title:
-        p = Panel(table, title=f"[bold]{title}[/bold]", border_style="dim", box=box.ROUNDED, padding=(0, 1), width=w)
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(p, highlight=False)
-    else:
-        console.print(f"{lpad}", end="", highlight=False)
-        console.print(table, highlight=False)
-
-
-def spinner_run(msg: str, func: Callable[[], Any]) -> Any:
-    result = None
-    error = None
-
-    def _worker() -> None:
-        nonlocal result, error
-        try:
-            result = func()
-        except Exception as exc:
-            error = exc
-
-    t = threading.Thread(target=_worker)
-    t.start()
-
-    sp = Spinner("dots", text=f"{content_pad()}{msg}", style=PRIMARY)
-    with Live(sp, console=console, refresh_per_second=10, transient=True):
-        while t.is_alive():
-            time.sleep(0.1)
-
-    if error:
-        raise error
-    return result
-
-
-def _frame_left_pad() -> int:
-    """Fixed left margin for left-aligned layout."""
-    return 1
-
-
-def content_pad() -> str:
-    """Left padding to align output with frame interior."""
-    return " " * (_frame_left_pad() + 3)
-
-
-def print_separator(state: TuiState | None = None) -> None:
-    """Print a thin separator line with optional contextual hint."""
-    pad = " " * _frame_left_pad()
-    console.print(f"{pad}{_dim_hline(_sep_width())}", highlight=False)
 
 
 def build_prompt(state: TuiState, wizard_step: tuple[int, int, str] | None = None) -> str:

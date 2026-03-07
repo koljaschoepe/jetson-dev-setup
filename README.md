@@ -612,12 +612,16 @@ Available slash commands in the TUI:
 | `/open <name>` | Open/activate a project |
 | `/delete` | Delete a project (interactive) |
 | `/claude` | Start Claude Code (with auth setup wizard) |
-| `/codex` | Start Codex |
+| `/auth` | Authentication status overview |
 | `/git` | GitHub CLI setup wizard |
 | `/browser` | Headless browser management (status/test/install/mcp) |
+| `/mcp` | MCP server management (list/add/test/remove) |
+| `/n8n` | n8n workflow automation (install/start/stop/status) |
+| `/tailscale` | Tailscale VPN (status/install/up/down) |
+| `/security` | Security audit checklist |
 | `/exit` | Quit |
 
-Keyboard shortcuts: `1-9` select project by number, `n` new project, `d` delete, `c` Claude, `x` Codex, `b` back.
+Keyboard shortcuts: `1-9` select project by number, `n` new project, `d` delete, `c` Claude, `g` lazygit, `b` back.
 
 ## Running Individual Setup Steps
 
@@ -680,12 +684,12 @@ Full template: [`.env.example`](.env.example)
 ├── .editorconfig               # Editor configuration
 ├── setup.sh                    # Main orchestrator
 ├── lib/
-│   └── common.sh               # Shared shell library (log, err, check_root, etc.)
+│   └── common.sh               # Shared shell library (log, err, check_root, helpers)
 ├── arasul_tui/
-│   ├── app.py                  # TUI application (slash-command interface)
-│   ├── commands.py             # Slash-command handlers
+│   ├── app.py                  # TUI application (two-level navigation, dispatch)
 │   ├── install.sh              # Installer for `arasul` launcher
-│   └── core/                   # Router, State, Registry, Types, Auth, Browser, Shell, UI
+│   ├── commands/               # Command handlers (10 modules)
+│   └── core/                   # Router, State, Registry, Types, Auth, UI package
 ├── tests/                      # Pytest test suite
 ├── scripts/
 │   ├── 01-system-optimize.sh   # Disable GUI, minimize services, tune kernel

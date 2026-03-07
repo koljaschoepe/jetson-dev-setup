@@ -10,7 +10,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.styles import Style
 
-from arasul_tui.core.auth import get_auth_env
+from arasul_tui.core.auth import get_auth_env, is_claude_configured
 from arasul_tui.core.router import REGISTRY, run_command
 from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
 from arasul_tui.core.types import PendingHandler
@@ -18,6 +18,7 @@ from arasul_tui.core.ui import (
     build_prompt,
     console,
     content_pad,
+    print_error,
     print_header,
     print_info,
     print_result,
@@ -195,6 +196,7 @@ def _fuzzy_match(query: str, projects: list[str]) -> list[str]:
     sub = [p for p in projects if q in p.lower()]
     if sub:
         return sub
+
     # Character-by-character fuzzy
     def _score(name: str) -> int:
         n = name.lower()
@@ -212,47 +214,145 @@ def _fuzzy_match(query: str, projects: list[str]) -> list[str]:
     return [p for p, _ in matches]
 
 
+def _try_launch_shortcut(state: TuiState, command: str) -> tuple[str, Path] | None:
+    """Handle g/lazygit and c/claude shortcuts. Returns (cmd, cwd) or None."""
+    if not state.active_project:
+        return None
+
+    lower = command.lower()
+
+    if lower in ("g", "lazygit"):
+        if not shutil.which("lazygit"):
+            print_error("[bold]lazygit[/bold] is not installed.")
+            return None
+        print_info(f"Starting [bold]lazygit[/bold] in [dim]{state.active_project.name}[/dim] ...")
+        return ("lazygit", state.active_project)
+
+    if lower == "c":
+        if not is_claude_configured():
+            return None  # caller will dispatch to /claude
+        if not shutil.which("claude"):
+            print_error("[bold]claude[/bold] is not installed.")
+            return None
+        print_info(f"Starting [bold]Claude Code[/bold] in [dim]{state.active_project.name}[/dim] ...")
+        return ("claude", state.active_project)
+
+    return None
+
+
+def _try_fuzzy_project(state: TuiState, command: str) -> bool:
+    """Try to match input to a project name. Returns True if handled."""
+    projects = project_list()
+    matches = _fuzzy_match(command, projects)
+
+    if len(matches) == 1:
+        target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
+        if target.exists() and target.is_dir():
+            state.active_project = target
+            state.screen = Screen.PROJECT
+            print_header(state, full=True)
+            return True
+    elif len(matches) > 1:
+        print_info(f"[bold]{len(matches)}[/bold] matches for [dim]{command}[/dim]:")
+        pad = content_pad()
+        for i, m in enumerate(matches[:5], 1):
+            console.print(f"{pad}  [cyan]{i}[/cyan]  {m}", highlight=False)
+        return True
+
+    return False
+
+
+def _dispatch_command(state: TuiState, command: str) -> tuple:
+    """Dispatch a single command. Returns (result_or_none, launch_request, should_break)."""
+    lower = command.lower()
+
+    # Shortcut: n (create), d (delete)
+    if lower == "n":
+        return run_command(state, "/create"), None, False
+    if lower == "d":
+        return run_command(state, "/delete"), None, False
+
+    # Number selection
+    if command.isdigit():
+        num = int(command)
+        if _handle_number(state, num):
+            print_header(state, full=True)
+        else:
+            print_warning(f"No project with number [bold]{num}[/bold].")
+        return None, None, False
+
+    # Back to main screen
+    if lower in ("b", "back", "home", "main"):
+        if state.active_project:
+            state.active_project = None
+            state.screen = Screen.MAIN
+            print_header(state, full=True)
+        else:
+            print_info("Already at the main screen.")
+        return None, None, False
+
+    # Launch shortcuts (g/lazygit, c/claude)
+    launch = _try_launch_shortcut(state, command)
+    if launch:
+        return None, launch, True
+    # c shortcut without claude configured → run /claude wizard
+    if state.active_project and lower == "c" and not is_claude_configured():
+        return run_command(state, "/claude"), None, False
+
+    # Slash commands
+    if command.startswith("/"):
+        result = run_command(state, command)
+        return result, None, result.quit_app
+
+    # Natural language command resolve
+    spec, args = REGISTRY.resolve(command)
+    if spec:
+        result = spec.handler(state, args)
+        return result, None, result.quit_app
+
+    # Fuzzy project search
+    if _try_fuzzy_project(state, command):
+        return None, None, False
+
+    # Nothing matched
+    _suggest_alternatives(command)
+    return None, None, False
+
+
 def run() -> None:
-    state = TuiState()
+    state = TuiState(registry=REGISTRY)
     pending_handler: PendingHandler | None = None
     wizard_step: tuple[int, int, str] | None = None
     launch_request: tuple[str, Path] | None = None
-    history = InMemoryHistory()
-    prompt_style = Style.from_dict(
-        {
-            "completion-menu": "bg:#1a1a1a",
-            "completion-menu.completion": "bg:#1a1a1a #888888",
-            "completion-menu.completion.current": "bg:#2d2d2d #ffffff bold",
-            "completion-menu.meta.completion": "bg:#1a1a1a #555555",
-            "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
-            "scrollbar.background": "bg:#1a1a1a",
-            "scrollbar.button": "bg:#1a1a1a",
-        }
-    )
+
     session: PromptSession[str] = PromptSession(
-        history=history,
+        history=InMemoryHistory(),
         completer=SmartCompleter(),
         complete_while_typing=True,
-        style=prompt_style,
+        style=Style.from_dict(
+            {
+                "completion-menu": "bg:#1a1a1a",
+                "completion-menu.completion": "bg:#1a1a1a #888888",
+                "completion-menu.completion.current": "bg:#2d2d2d #ffffff bold",
+                "completion-menu.meta.completion": "bg:#1a1a1a #555555",
+                "completion-menu.meta.completion.current": "bg:#2d2d2d #888888",
+                "scrollbar.background": "bg:#1a1a1a",
+                "scrollbar.button": "bg:#1a1a1a",
+            }
+        ),
     )
 
-    # Show dashboard only once at startup
     print_header(state, full=True)
     state.first_run = False
 
-    def _handle_result(result):
-        """Process a CommandResult: print output, chain wizards, handle navigation."""
+    def _handle_result(result) -> None:
         nonlocal pending_handler, wizard_step, launch_request
-
         print_result(result)
-
         if result.prompt and result.pending_handler:
             pending_handler = result.pending_handler
             wizard_step = result.wizard_step
-
         if result.refresh:
             print_header(state, full=True)
-
         if result.launch_command and result.launch_cwd:
             launch_request = (result.launch_command, result.launch_cwd)
 
@@ -260,10 +360,10 @@ def run() -> None:
         try:
             print_separator()
             prompt_markup = build_prompt(state, wizard_step)
-            if pending_handler:
-                raw = session.prompt(HTML(prompt_markup), completer=None)
-            else:
-                raw = session.prompt(HTML(prompt_markup))
+            raw = session.prompt(
+                HTML(prompt_markup),
+                completer=None if pending_handler else SmartCompleter(),
+            )
         except (EOFError, KeyboardInterrupt):
             break
 
@@ -271,14 +371,13 @@ def run() -> None:
         if not command:
             continue
 
-        # --- Pending handler (wizard) ---
+        # Wizard mode
         if pending_handler:
             if command.lower() == "q":
                 pending_handler = None
                 wizard_step = None
                 print_info("Cancelled.")
                 continue
-
             result = pending_handler(state, command)
             pending_handler = None
             wizard_step = None
@@ -287,108 +386,23 @@ def run() -> None:
                 break
             continue
 
-        # --- Shortcut: n (create) ---
-        if command.lower() == "n":
-            result = run_command(state, "/create")
+        # Normal dispatch
+        result, launch, should_break = _dispatch_command(state, command)
+        if result:
             _handle_result(result)
-            continue
-
-        # --- Shortcut: d (delete) ---
-        if command.lower() == "d":
-            result = run_command(state, "/delete")
-            _handle_result(result)
-            continue
-
-        # --- Number selection (project) ---
-        if command.isdigit():
-            num = int(command)
-            if _handle_number(state, num):
-                print_header(state, full=True)
-                continue
-            else:
-                print_warning(f"No project with number [bold]{num}[/bold].")
-                continue
-
-        # --- Back to main screen ---
-        if command.lower() in ("b", "back", "home", "main"):
-            if state.active_project:
-                state.active_project = None
-                state.screen = Screen.MAIN
-                print_header(state, full=True)
-            continue
-
-        # --- Launch shortcuts when project is active ---
-        if state.active_project and command.lower() in ("g", "lazygit"):
-            if not shutil.which("lazygit"):
-                from arasul_tui.core.ui import print_error
-
-                print_error("[bold]lazygit[/bold] is not installed.")
-                continue
-            print_info(f"Starting [bold]lazygit[/bold] in [dim]{state.active_project.name}[/dim] ...")
-            launch_request = ("lazygit", state.active_project)
+        if launch:
+            launch_request = launch
+        if should_break or (result and result.quit_app):
             break
-
-        if state.active_project and command.lower() == "c":
-            from arasul_tui.core.auth import is_claude_configured
-
-            if not is_claude_configured():
-                result = run_command(state, "/claude")
-                _handle_result(result)
-                continue
-
-            if not shutil.which("claude"):
-                from arasul_tui.core.ui import print_error
-
-                print_error("[bold]claude[/bold] is not installed.")
-                continue
-
-            print_info(f"Starting [bold]Claude Code[/bold] in [dim]{state.active_project.name}[/dim] ...")
-            launch_request = ("claude", state.active_project)
-            break
-
-        # --- Slash commands (direct) ---
-        if command.startswith("/"):
-            result = run_command(state, command)
-            _handle_result(result)
-            if result.quit_app:
-                break
-            continue
-
-        # --- Natural language: try command resolve first, then project fuzzy ---
-        spec, args = REGISTRY.resolve(command)
-        if spec:
-            result = spec.handler(state, args)
-            _handle_result(result)
-            if result.quit_app:
-                break
-            continue
-
-        # --- Fuzzy project search ---
-        projects = project_list()
-        matches = _fuzzy_match(command, projects)
-        if len(matches) == 1:
-            target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
-            if target.exists() and target.is_dir():
-                state.active_project = target
-                state.screen = Screen.PROJECT
-                print_header(state, full=True)
-                continue
-        elif len(matches) > 1:
-            from arasul_tui.core.ui import print_info as _pi
-
-            _pi(f"[bold]{len(matches)}[/bold] matches for [dim]{command}[/dim]:")
-            pad = content_pad()
-            for i, m in enumerate(matches[:5], 1):
-                console.print(f"{pad}  [cyan]{i}[/cyan]  {m}", highlight=False)
-            continue
-
-        # --- Nothing matched — suggest closest commands ---
-        _suggest_alternatives(command)
 
     if launch_request:
         cmd, cwd = launch_request
         os.environ.update(get_auth_env())
-        os.chdir(str(cwd))
+        try:
+            os.chdir(str(cwd))
+        except OSError:
+            print_warning(f"Directory not accessible: {cwd}")
+            return
         os.execvp(cmd, [cmd])
 
 

@@ -43,3 +43,33 @@ check_internet() {
     fi
     return 0
 }
+
+# Check if a Debian package is installed
+# Usage: is_pkg_installed "package-name"
+is_pkg_installed() {
+    dpkg -l "$1" 2>/dev/null | grep -q "^ii"
+}
+
+# Install packages with standard flags (quiet, non-interactive)
+# Usage: apt_install package1 package2 ...
+apt_install() {
+    apt-get install -y -qq "$@"
+}
+
+# Create a directory owned by REAL_USER
+# Usage: mkdir_as_user /path/to/dir
+mkdir_as_user() {
+    mkdir -p "$1"
+    chown "${REAL_USER}:${REAL_USER}" "$1"
+}
+
+# Append a line to a file if a pattern is not already present
+# Usage: append_if_missing "file" "grep_pattern" "line_to_append"
+append_if_missing() {
+    local file="$1" pattern="$2" content="$3"
+    if ! grep -q "$pattern" "$file" 2>/dev/null; then
+        echo "$content" >> "$file"
+        return 0
+    fi
+    return 1
+}

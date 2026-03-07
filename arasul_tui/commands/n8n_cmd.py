@@ -59,12 +59,13 @@ _SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇"
 
 # Step status icons
 _ICON_DONE = f"[{SUCCESS}]\u2713[/{SUCCESS}]"  # ✓
-_ICON_PENDING = f"[{DIM}]\u25cb[/{DIM}]"        # ○
+_ICON_PENDING = f"[{DIM}]\u25cb[/{DIM}]"  # ○
 
 
 # ---------------------------------------------------------------------------
 # Animated install display
 # ---------------------------------------------------------------------------
+
 
 def _check_milestone(index: int) -> bool:
     """Check if a milestone is reached by polling filesystem/docker."""
@@ -85,10 +86,11 @@ def _check_milestone(index: int) -> bool:
     if index == 5:  # Health check
         try:
             from urllib.request import Request, urlopen
+
             req = Request(f"{N8N_BASE_URL}/healthz", method="GET")
             with urlopen(req, timeout=3) as resp:
                 return resp.status == 200
-        except Exception:
+        except (OSError, ValueError):
             return False
     return False
 
@@ -183,7 +185,7 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
         nonlocal output, error, script_done
         try:
             output = run_cmd(setup_cmd, timeout=600)
-        except Exception as exc:
+        except OSError as exc:
             error = exc
         finally:
             script_done = True
@@ -217,11 +219,7 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
                 len(_STEPS) - 1,
             )
 
-            live.update(
-                _build_install_panel(
-                    step_states, active, frame_idx, elapsed, False, False
-                )
-            )
+            live.update(_build_install_panel(step_states, active, frame_idx, elapsed, False, False))
             time.sleep(0.12)
 
         # Final state — check all milestones one last time
@@ -251,6 +249,7 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 # Status dashboard
 # ---------------------------------------------------------------------------
+
 
 def _show_status() -> CommandResult:
     rows: list[tuple[str, str]] = []
@@ -310,6 +309,7 @@ def _show_status() -> CommandResult:
 # Smart flow: install -> start -> api-key -> mcp
 # ---------------------------------------------------------------------------
 
+
 def _smart_flow(state: TuiState) -> CommandResult:
     # --- Step 1: Install if needed ---
     if not n8n_is_installed():
@@ -327,16 +327,12 @@ def _smart_flow(state: TuiState) -> CommandResult:
 
         # The script needs NVME_MOUNT, REAL_USER, and SCRIPT_DIR
         real_user = os.environ.get("USER") or os.environ.get("LOGNAME", "")
-        env_vars = (
-            f'NVME_MOUNT=/mnt/nvme REAL_USER={real_user} SCRIPT_DIR="{repo_root}"'
-        )
+        env_vars = f'NVME_MOUNT=/mnt/nvme REAL_USER={real_user} SCRIPT_DIR="{repo_root}"'
 
         console.print()
         try:
-            ok, output = _run_install_animated(
-                f"sudo {env_vars} bash {setup_script} 2>&1"
-            )
-        except Exception as exc:
+            ok, output = _run_install_animated(f"sudo {env_vars} bash {setup_script} 2>&1")
+        except OSError as exc:
             print_error(f"Installation failed: {exc}")
             return CommandResult(ok=False, style="silent")
 
@@ -352,6 +348,7 @@ def _smart_flow(state: TuiState) -> CommandResult:
 
     # --- Step 2: Start if stopped ---
     if n8n_is_installed() and not n8n_is_running():
+
         def _run_start() -> str:
             return n8n_compose_cmd("up -d")
 
@@ -403,7 +400,11 @@ def _api_key_finish(state: TuiState, raw: str) -> CommandResult:
         print_error("No key provided.")
         return CommandResult(ok=False, style="silent")
 
-    n8n_save_api_key(key)
+    try:
+        n8n_save_api_key(key)
+    except OSError as exc:
+        print_error(f"Failed to save API key: {exc}")
+        return CommandResult(ok=False, style="silent")
     print_success(f"API key saved: [dim]{key[:8]}...[/dim]")
 
     # Auto-configure MCP after saving API key
@@ -424,6 +425,7 @@ def _api_key_finish(state: TuiState, raw: str) -> CommandResult:
 # ---------------------------------------------------------------------------
 # Auto-create n8n-workflows project
 # ---------------------------------------------------------------------------
+
 
 def _ensure_n8n_project(state: TuiState) -> bool:
     """Create the n8n-workflows project if it doesn't exist yet.
@@ -462,6 +464,7 @@ def _ensure_n8n_project(state: TuiState) -> bool:
 # /n8n stop
 # ---------------------------------------------------------------------------
 
+
 def _do_stop() -> CommandResult:
     if not n8n_is_installed():
         print_warning("n8n not installed.")
@@ -482,6 +485,7 @@ def _do_stop() -> CommandResult:
 # ---------------------------------------------------------------------------
 # /n8n (dispatcher)
 # ---------------------------------------------------------------------------
+
 
 def cmd_n8n(state: TuiState, args: list[str]) -> CommandResult:
     if args and args[0].lower() == "stop":

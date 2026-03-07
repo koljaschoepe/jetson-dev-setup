@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
-from arasul_tui.core.constants import CLAUDE_JSON
+from arasul_tui.core.claude_json import load_claude_json, save_claude_json
 
 PROFILE = Path.home() / ".profile"
 BASHRC = Path.home() / ".bashrc"
@@ -52,12 +51,10 @@ def _read_token() -> str | None:
     return None
 
 
-def _write_token(token: str) -> None:
-    export_line = f'export {TOKEN_VAR}="{token}"'
-
-    # Write to .profile (loaded for both interactive and non-interactive shells)
+def _upsert_shell_export(path: Path, export_line: str, mode: int) -> None:
+    """Insert or replace an export line in a shell config file."""
     try:
-        text = PROFILE.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         text = ""
 
@@ -68,49 +65,27 @@ def _write_token(token: str) -> None:
             text += "\n"
         text += f"\n{export_line}\n"
 
-    PROFILE.write_text(text, encoding="utf-8")
-    PROFILE.chmod(0o600)
+    path.write_text(text, encoding="utf-8")
+    path.chmod(mode)
 
-    # Also write to .bashrc for interactive shell convenience
-    try:
-        rc_text = BASHRC.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        rc_text = ""
 
-    if _EXPORT_RE.search(rc_text):
-        rc_text = _EXPORT_RE.sub(export_line, rc_text)
-    else:
-        if rc_text and not rc_text.endswith("\n"):
-            rc_text += "\n"
-        rc_text += f"\n{export_line}\n"
-
-    BASHRC.write_text(rc_text, encoding="utf-8")
-    BASHRC.chmod(0o644)
+def _write_token(token: str) -> None:
+    export_line = f'export {TOKEN_VAR}="{token}"'
+    _upsert_shell_export(PROFILE, export_line, 0o600)
+    _upsert_shell_export(BASHRC, export_line, 0o644)
 
 
 def _has_account() -> bool:
-    try:
-        data = json.loads(CLAUDE_JSON.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return False
+    data = load_claude_json()
     acct = data.get("oauthAccount")
     return isinstance(acct, dict) and bool(acct.get("accountUuid"))
 
 
 def _write_account(account_uuid: str, email: str) -> None:
-    try:
-        data = json.loads(CLAUDE_JSON.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-
+    data = load_claude_json()
     data["oauthAccount"] = {
         "accountUuid": account_uuid,
         "emailAddress": email,
     }
     data["hasCompletedOnboarding"] = True
-
-    CLAUDE_JSON.write_text(
-        json.dumps(data, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    CLAUDE_JSON.chmod(0o600)
+    save_claude_json(data)

@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-03-07
+
+### Changed
+
+- **Architecture:** Split monolithic `ui.py` (707 lines) into `ui/` package with `output.py`, `panels.py`, `dashboard.py`
+- **Architecture:** Resolved circular dependency between `meta.py` and `router.py` via state injection
+- **Architecture:** Extracted `_dispatch_command()`, `_try_launch_shortcut()`, `_try_fuzzy_project()` from `app.py` run loop
+- **Code quality:** Created `core/claude_json.py` — centralized `~/.claude.json` read/write (eliminated 14 duplicate patterns)
+- **Code quality:** Extracted `_upsert_shell_export()` in `auth.py` (eliminated duplicated .profile/.bashrc logic)
+- **Code quality:** Consolidated "no active project" guard in `git_ops.py` (4 identical checks → 1)
+- **Code quality:** Added `is_pkg_installed`, `apt_install`, `mkdir_as_user`, `append_if_missing` helpers to `lib/common.sh`
+
+### Fixed
+
+- **Security:** Shell injection in `git_ops.py` — replaced `shell=True` with argument list for token auth
+- **Security:** Path traversal protection in `project.py` with `_is_safe_name()` and `_validate_project_path()`
+- **Security:** URL validation with regex in `project.py` (`_GIT_URL_RE`)
+- **Security:** Input sanitization in `setup.sh` with `_sanitise()` function
+- **Security:** Quoted `${NVME_DEVICE}` in heredoc cron in `04-nvme-setup.sh`
+- **Robustness:** Narrowed `except Exception` to specific types in 10+ places (OSError, TimeoutExpired, etc.)
+- **Robustness:** Fixed silent failure in `tailscale_cmd.py _do_down()` — now checks command output
+- **Robustness:** Fixed false success on SSH key upload error in `git_ops.py`
+- **Robustness:** Added error handling for `n8n_save_api_key()` in `n8n_cmd.py`
+- **Robustness:** Wrapped `configure_mcp()` in try/except in `browser_cmd.py`
+- **Robustness:** Added int-parse error check in `docker_info.py`
+
+### Added
+
+- 68 new tests (176 → 244), covering all previously untested command modules
+- Test coverage reporting in CI with 55% minimum threshold
+- Test files: `test_claude_json.py`, `test_shell.py`, `test_mcp_cmd.py`, `test_browser_cmd.py`, `test_tailscale_cmd.py`, `test_git_ops.py`, `test_system_cmd.py`, `test_ai_cmd.py`
+
 ## [0.1.0] - 2026-03-03
 
 ### Added

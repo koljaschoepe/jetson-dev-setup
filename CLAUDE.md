@@ -45,11 +45,11 @@ Scripts read variables via exported environment variables from `setup.sh`.
 ├── README.md           # Setup guide
 ├── setup.sh            # Main orchestrator (sources .env)
 ├── lib/
-│   └── common.sh       # Shared shell library (log, err, check_root, etc.)
+│   └── common.sh       # Shared shell library (log, err, check_root, helpers)
 ├── arasul_tui/
-│   ├── app.py          # TUI application (two-level navigation)
+│   ├── app.py          # TUI application (two-level navigation, dispatch)
 │   ├── install.sh      # Installer (venv + launcher)
-│   ├── commands/       # Command handlers (9 modules)
+│   ├── commands/       # Command handlers (10 modules)
 │   │   ├── __init__.py      # Re-exports all handlers
 │   │   ├── project.py       # /open, /create, /clone, /delete, /info, /repos
 │   │   ├── ai.py            # /claude, /auth
@@ -58,23 +58,34 @@ Scripts read variables via exported environment variables from `setup.sh`.
 │   │   ├── git_ops.py       # /git (pull/push/log/status + setup wizard)
 │   │   ├── browser_cmd.py   # /browser (status/test/install/mcp)
 │   │   ├── mcp.py           # /mcp (list/add/test/remove)
+│   │   ├── n8n_cmd.py       # /n8n (smart flow: install/start/api-key/mcp)
 │   │   ├── tailscale_cmd.py # /tailscale (status/install/up/down)
 │   │   └── meta.py          # /help, /exit
 │   └── core/
 │       ├── auth.py          # Claude OAuth token management
 │       ├── browser.py       # Playwright/headless browser management
+│       ├── cache.py         # Shell command caching + parallel execution
+│       ├── claude_json.py   # Shared ~/.claude.json read/write helpers
 │       ├── constants.py     # Shared constants (CLAUDE_JSON path)
 │       ├── docker_info.py   # Docker container listing
 │       ├── git_info.py      # Git metadata (branch, dirty, language detection)
+│       ├── n8n_client.py    # n8n API client (health, workflows, compose)
+│       ├── n8n_mcp.py       # n8n MCP server configuration
+│       ├── n8n_project.py   # n8n project scaffolding
 │       ├── projects.py      # YAML project registry CRUD
 │       ├── registry.py      # Command registry (with categories + subcommands)
-│       ├── router.py        # Command routing and dispatch (21 commands)
+│       ├── router.py        # Command routing and dispatch
 │       ├── security.py      # SSH keys, login history, security audit
 │       ├── setup_wizard.py  # Setup step definitions + runner
 │       ├── shell.py         # Subprocess helper (run_cmd)
 │       ├── state.py         # TUI state (Screen enum, wizard dict)
+│       ├── theme.py         # Color/icon constants for Rich output
 │       ├── types.py         # CommandResult and type definitions
-│       └── ui.py            # Rich UI (project screen, styled panels, checklist)
+│       └── ui/              # Rich UI package (split from monolithic ui.py)
+│           ├── __init__.py      # Re-exports all public symbols
+│           ├── output.py        # Console, print helpers, spinner
+│           ├── panels.py        # Styled panels, checklists, progress, KV
+│           └── dashboard.py     # Logo, system metrics, headers, prompt
 ├── tests/              # Pytest test suite
 ├── scripts/
 │   ├── 01-system-optimize.sh   # Disable GUI, services, tune kernel
@@ -112,7 +123,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
   - `./arasul_tui/install.sh`
   - Start with `arasul` or alias `atui`
 - Two-level navigation: Main Screen → Project Screen
-- 21 slash commands across 8 categories:
+- 22 slash commands across 9 categories:
   - **Projects:** `/open`, `/create`, `/clone`, `/delete`, `/info`, `/repos`
   - **Claude Code:** `/claude`, `/auth`
   - **Git:** `/git` (no args = setup wizard), `/git pull`, `/git push`, `/git log`, `/git status`
@@ -121,6 +132,7 @@ Scripts read variables via exported environment variables from `setup.sh`.
   - **Browser:** `/browser status|test|install|mcp`
   - **MCP:** `/mcp list|add|test|remove`
   - **Network:** `/tailscale status|install|up|down`
+  - **n8n:** `/n8n` (smart flow: install/start/api-key/mcp), `/n8n stop`
   - **Meta:** `/help`, `/exit`
 - Keyboard shortcuts: `1-9` (select project), `n` (new), `d` (delete), `c` (Claude), `g` (lazygit), `b` (back)
 

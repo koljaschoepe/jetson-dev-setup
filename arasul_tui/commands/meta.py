@@ -1,25 +1,19 @@
 from __future__ import annotations
 
+from arasul_tui.core.registry import CommandRegistry
 from arasul_tui.core.state import Screen, TuiState
 from arasul_tui.core.theme import DIM, PRIMARY
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import console, content_pad
-
-
-def _get_registry():
-    """Lazy import to avoid circular dependency."""
-    from arasul_tui.core.router import REGISTRY
-
-    return REGISTRY
 
 # Box characters
 _CORNER_TL = "\u256d"  # ╭
 _CORNER_TR = "\u256e"  # ╮
 _CORNER_BL = "\u2570"  # ╰
 _CORNER_BR = "\u256f"  # ╯
-_VLINE = "\u2502"      # │
-_HLINE = "\u2500"      # ─
-_DOT = "\u00b7"        # ·
+_VLINE = "\u2502"  # │
+_HLINE = "\u2500"  # ─
+_DOT = "\u00b7"  # ·
 
 
 def _box(title: str, rows: list[str], pad: str, width: int = 44) -> None:
@@ -44,9 +38,8 @@ def _box(title: str, rows: list[str], pad: str, width: int = 44) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _cmd_detail(name: str, pad: str) -> bool:
+def _cmd_detail(name: str, pad: str, reg: CommandRegistry) -> bool:
     """Show detailed help for a single command. Returns True if found."""
-    reg = _get_registry()
     spec = reg.get(name.lower())
     if not spec:
         # Try alias
@@ -58,7 +51,9 @@ def _cmd_detail(name: str, pad: str) -> bool:
         return False
 
     console.print()
-    console.print(f"{pad}[bold {PRIMARY}]{spec.name}[/bold {PRIMARY}]  [{DIM}]{spec.help_text}[/{DIM}]", highlight=False)
+    console.print(
+        f"{pad}[bold {PRIMARY}]{spec.name}[/bold {PRIMARY}]  [{DIM}]{spec.help_text}[/{DIM}]", highlight=False
+    )
     console.print()
 
     if spec.aliases:
@@ -75,7 +70,7 @@ def _cmd_detail(name: str, pad: str) -> bool:
     return True
 
 
-def _help_main(pad: str) -> None:
+def _help_main(pad: str, reg: CommandRegistry) -> None:
     """Full help for main screen."""
     console.print()
 
@@ -89,7 +84,7 @@ def _help_main(pad: str) -> None:
     console.print()
 
     # Commands by category
-    cats = _get_registry().categories()
+    cats = reg.categories()
     # Define display order
     order = ["Projects", "Claude Code", "Git", "System", "Security", "Browser", "MCP", "Network", "Meta"]
     for cat in order:
@@ -111,7 +106,7 @@ def _help_main(pad: str) -> None:
     console.print()
 
 
-def _help_project(pad: str) -> None:
+def _help_project(pad: str, reg: CommandRegistry) -> None:
     """Context-aware help when a project is open."""
     console.print()
 
@@ -147,19 +142,22 @@ def _help_project(pad: str) -> None:
 
 def cmd_help(state: TuiState, args: list[str]) -> CommandResult:
     pad = content_pad()
+    reg: CommandRegistry = state.registry
 
     # help <command> — show single command detail
     if args:
-        found = _cmd_detail(args[0], pad)
+        found = _cmd_detail(args[0], pad, reg)
         if not found:
-            console.print(f"{pad}[{DIM}]Unknown command: {args[0]}. Try 'help' for all commands.[/{DIM}]", highlight=False)
+            console.print(
+                f"{pad}[{DIM}]Unknown command: {args[0]}. Try 'help' for all commands.[/{DIM}]", highlight=False
+            )
         return CommandResult(ok=True, style="silent")
 
     # Context-aware help
     if state.screen == Screen.PROJECT or state.active_project:
-        _help_project(pad)
+        _help_project(pad, reg)
     else:
-        _help_main(pad)
+        _help_main(pad, reg)
 
     return CommandResult(ok=True, style="silent")
 

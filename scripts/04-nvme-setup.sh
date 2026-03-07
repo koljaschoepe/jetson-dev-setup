@@ -155,7 +155,7 @@ HEALTH_CRON="/etc/cron.weekly/nvme-health"
 if [[ ! -f "$HEALTH_CRON" ]]; then
     cat > "$HEALTH_CRON" << EOF
 #!/bin/bash
-smartctl -a ${NVME_DEVICE} >> /var/log/jetson-setup/nvme-health.log 2>&1
+smartctl -a "${NVME_DEVICE}" >> /var/log/jetson-setup/nvme-health.log 2>&1
 EOF
     chmod +x "$HEALTH_CRON"
     log "Weekly NVMe health check cron installed"

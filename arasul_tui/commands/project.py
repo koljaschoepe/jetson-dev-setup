@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -27,15 +28,27 @@ def _project_root(state: TuiState) -> Path | None:
     try:
         root.mkdir(parents=True, exist_ok=True)
         return root
-    except Exception:
+    except OSError:
         return None
 
 
 def _project_dirs(root: Path) -> list[Path]:
     try:
         return sorted([p for p in root.iterdir() if p.is_dir()], key=lambda p: p.name.lower())
-    except Exception:
+    except OSError:
         return []
+
+
+def _is_safe_name(name: str) -> bool:
+    """Reject names that could escape the project root."""
+    return bool(name and "/" not in name and "\\" not in name and not name.startswith(".") and ".." not in name)
+
+
+def _validate_project_path(target: Path, root: Path) -> str | None:
+    """Return error message if path is invalid, else None."""
+    if not target.resolve().is_relative_to(root.resolve()):
+        return "Path outside project root is not allowed."
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -59,8 +72,9 @@ def cmd_open(state: TuiState, args: list[str]) -> CommandResult:
 
     name = args[0]
     target = (root / name).resolve()
-    if not target.is_relative_to(root.resolve()):
-        print_error("Path outside project root is not allowed.")
+    path_err = _validate_project_path(target, root)
+    if path_err:
+        print_error(path_err)
         return CommandResult(ok=False, style="silent")
     if not target.exists() or not target.is_dir():
         print_error(f"Project not found: [bold]{name}[/bold]")
@@ -76,7 +90,7 @@ def cmd_open(state: TuiState, args: list[str]) -> CommandResult:
 
 def _create_finish(state: TuiState, user_input: str) -> CommandResult:
     name = user_input.strip().replace(" ", "-")
-    if not name or "/" in name or "\\" in name or name.startswith("."):
+    if not _is_safe_name(name):
         print_error("Invalid project name.")
         return CommandResult(ok=False, style="silent")
     root = _project_root(state)
@@ -84,8 +98,9 @@ def _create_finish(state: TuiState, user_input: str) -> CommandResult:
         print_error(f"Project root not writable: {state.project_root}")
         return CommandResult(ok=False, style="silent")
     target = (root / name).resolve()
-    if not target.is_relative_to(root.resolve()):
-        print_error("Path outside project root is not allowed.")
+    path_err = _validate_project_path(target, root)
+    if path_err:
+        print_error(path_err)
         return CommandResult(ok=False, style="silent")
     if target.exists():
         print_error(f"Project already exists: {target}")
@@ -133,12 +148,13 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
         print_error("URL must not be empty.")
         return CommandResult(ok=False, style="silent")
 
-    if not (url.startswith("https://") or url.startswith("git@")):
+    _GIT_URL_RE = re.compile(r"^(https://[\w.\-]+/[\w.\-/]+|git@[\w.\-]+:[\w.\-/]+)$")
+    if not _GIT_URL_RE.match(url):
         print_error("Invalid URL. Expected: [dim]https://github.com/user/repo[/dim]")
         return CommandResult(ok=False, style="silent")
 
     repo_name = url.rstrip("/").split("/")[-1].removesuffix(".git")
-    if not repo_name or "/" in repo_name or "\\" in repo_name or repo_name.startswith("."):
+    if not _is_safe_name(repo_name):
         print_error("Could not derive a safe repo name from URL.")
         return CommandResult(ok=False, style="silent")
 
@@ -148,8 +164,9 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
         return CommandResult(ok=False, style="silent")
 
     target = (root / repo_name).resolve()
-    if not target.is_relative_to(root.resolve()):
-        print_error("Path outside project root is not allowed.")
+    path_err = _validate_project_path(target, root)
+    if path_err:
+        print_error(path_err)
         return CommandResult(ok=False, style="silent")
     if target.exists():
         print_error(f"Directory already exists: [bold]{repo_name}[/bold]")
@@ -165,7 +182,7 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
 
     try:
         result = spinner_run(f"Cloning [bold]{repo_name}[/bold] ...", _do_clone)
-    except Exception as exc:
+    except (subprocess.TimeoutExpired, OSError) as exc:
         print_error(f"Clone failed: {exc}")
         return CommandResult(ok=False, style="silent")
 
@@ -219,7 +236,7 @@ def _delete_confirm(state: TuiState, user_input: str) -> CommandResult:
 
     try:
         shutil.rmtree(target)
-    except Exception as exc:
+    except OSError as exc:
         print_error(f"Deletion failed: {exc}")
         return CommandResult(ok=False, style="silent")
 

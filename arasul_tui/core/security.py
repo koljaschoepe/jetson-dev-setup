@@ -183,13 +183,9 @@ def _n8n_security_audit() -> list[AuditItem]:
         items.append(AuditItem("n8n key backup", "No backup found", "warn"))
 
     # PostgreSQL not exposed
-    n8n_running = run_cmd(
-        "docker ps --filter name=n8n --filter status=running -q 2>/dev/null", timeout=5
-    )
+    n8n_running = run_cmd("docker ps --filter name=n8n --filter status=running -q 2>/dev/null", timeout=5)
     if n8n_running and not n8n_running.startswith("Error"):
-        pg_ports = run_cmd(
-            "docker ps --filter name=postgres --format '{{.Ports}}' 2>/dev/null", timeout=5
-        )
+        pg_ports = run_cmd("docker ps --filter name=postgres --format '{{.Ports}}' 2>/dev/null", timeout=5)
         if pg_ports and "0.0.0.0" in pg_ports:
             items.append(AuditItem("n8n PostgreSQL", "Exposed externally", "fail"))
         else:

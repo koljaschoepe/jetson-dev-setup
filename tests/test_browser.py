@@ -45,14 +45,14 @@ def test_browsers_path_fallback(tmp_path: Path):
 
 def test_is_mcp_configured_no_file(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
-    with patch("arasul_tui.core.browser.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert is_mcp_configured() is False
 
 
 def test_is_mcp_configured_no_playwright(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
     claude_json.write_text('{"mcpServers": {}}', encoding="utf-8")
-    with patch("arasul_tui.core.browser.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert is_mcp_configured() is False
 
 
@@ -60,14 +60,14 @@ def test_is_mcp_configured_with_playwright(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
     data = {"mcpServers": {"playwright": {"command": "npx"}}}
     claude_json.write_text(json.dumps(data), encoding="utf-8")
-    with patch("arasul_tui.core.browser.CLAUDE_JSON", claude_json):
+    with patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json):
         assert is_mcp_configured() is True
 
 
 def test_configure_mcp_creates_entry(tmp_path: Path):
     claude_json = tmp_path / ".claude.json"
     with (
-        patch("arasul_tui.core.browser.CLAUDE_JSON", claude_json),
+        patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json),
         patch("arasul_tui.core.browser._browsers_path", return_value=tmp_path / "browsers"),
     ):
         ok, msg = configure_mcp()
@@ -82,7 +82,7 @@ def test_configure_mcp_preserves_existing(tmp_path: Path):
     existing = {"someKey": "someValue", "mcpServers": {"other": {"command": "test"}}}
     claude_json.write_text(json.dumps(existing), encoding="utf-8")
     with (
-        patch("arasul_tui.core.browser.CLAUDE_JSON", claude_json),
+        patch("arasul_tui.core.claude_json.CLAUDE_JSON", claude_json),
         patch("arasul_tui.core.browser._browsers_path", return_value=tmp_path / "browsers"),
     ):
         ok, msg = configure_mcp()

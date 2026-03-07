@@ -48,10 +48,12 @@ def test_cached_cmd_caches():
 
 def test_parallel_cmds():
     with patch("arasul_tui.core.shell.run_cmd", side_effect=lambda cmd, timeout=4: cmd):
-        results = parallel_cmds({
-            "a": ("cmd_a", 4),
-            "b": ("cmd_b", 4),
-        })
+        results = parallel_cmds(
+            {
+                "a": ("cmd_a", 4),
+                "b": ("cmd_b", 4),
+            }
+        )
         assert results["a"] == "cmd_a"
         assert results["b"] == "cmd_b"
     invalidate_all()

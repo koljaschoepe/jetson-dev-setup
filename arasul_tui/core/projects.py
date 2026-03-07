@@ -54,7 +54,6 @@ def _record_from_dict(item: dict[str, Any]) -> ProjectRecord:
     )
 
 
-
 def list_projects() -> list[ProjectRecord]:
     reg = load_registry()
     out = [_record_from_dict(item) for item in reg["projects"]]
@@ -95,5 +94,3 @@ def unregister_project(name: str) -> bool:
         save_registry(reg)
         return True
     return False
-
-

@@ -30,8 +30,11 @@ def cmd_browser(state: TuiState, args: list[str]) -> CommandResult:
     if sub == "install":
         ok, lines = install_browser()
         if ok and not is_mcp_configured():
-            mcp_ok, mcp_msg = configure_mcp()
-            lines.append(mcp_msg)
+            try:
+                mcp_ok, mcp_msg = configure_mcp()
+                lines.append(mcp_msg)
+            except OSError as exc:
+                lines.append(f"MCP config failed: {exc}")
         return CommandResult(ok=ok, lines=lines, style="panel")
 
     if sub == "mcp":

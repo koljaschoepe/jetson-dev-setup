@@ -96,7 +96,7 @@ def _do_install() -> CommandResult:
 
     try:
         spinner_run("Installing Tailscale...", _run_install)
-    except Exception as exc:
+    except OSError as exc:
         print_error(f"Installation failed: {exc}")
         return CommandResult(ok=False, style="silent")
 
@@ -167,7 +167,10 @@ def _do_down() -> CommandResult:
         print_info("Tailscale is already disconnected.")
         return CommandResult(ok=True, style="silent")
 
-    run_cmd("sudo tailscale down 2>&1", timeout=10)
+    output = run_cmd("sudo tailscale down 2>&1", timeout=10)
+    if output and ("error" in output.lower() or "denied" in output.lower()):
+        print_error(f"Disconnect failed: {output[:200]}")
+        return CommandResult(ok=False, style="silent")
     print_success("Tailscale disconnected.")
     return CommandResult(ok=True, style="silent")
 

@@ -32,9 +32,14 @@ def test_n8n_installed_stopped_starts(state: TuiState):
         patch("arasul_tui.commands.n8n_cmd.n8n_compose_cmd", return_value=""),
         patch("arasul_tui.commands.n8n_cmd.n8n_get_api_key", return_value="test-key-12345"),
         patch("arasul_tui.commands.n8n_cmd.is_n8n_mcp_configured", return_value=True),
-        patch("arasul_tui.commands.n8n_cmd.n8n_health", return_value={
-            "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
-        }),
+        patch(
+            "arasul_tui.commands.n8n_cmd.n8n_health",
+            return_value={
+                "container": "Up 5 min",
+                "postgres": "Up 5 min",
+                "api": "healthy",
+            },
+        ),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
         patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
@@ -62,9 +67,14 @@ def test_n8n_running_all_ok_shows_status(state: TuiState):
         patch("arasul_tui.commands.n8n_cmd.n8n_is_running", return_value=True),
         patch("arasul_tui.commands.n8n_cmd.n8n_get_api_key", return_value="test-key-12345"),
         patch("arasul_tui.commands.n8n_cmd.is_n8n_mcp_configured", return_value=True),
-        patch("arasul_tui.commands.n8n_cmd.n8n_health", return_value={
-            "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
-        }),
+        patch(
+            "arasul_tui.commands.n8n_cmd.n8n_health",
+            return_value={
+                "container": "Up 5 min",
+                "postgres": "Up 5 min",
+                "api": "healthy",
+            },
+        ),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
         patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):
@@ -117,9 +127,14 @@ def test_n8n_unknown_subcommand_treated_as_smart_flow(state: TuiState):
         patch("arasul_tui.commands.n8n_cmd.n8n_is_running", return_value=True),
         patch("arasul_tui.commands.n8n_cmd.n8n_get_api_key", return_value="key-123"),
         patch("arasul_tui.commands.n8n_cmd.is_n8n_mcp_configured", return_value=True),
-        patch("arasul_tui.commands.n8n_cmd.n8n_health", return_value={
-            "container": "Up 5 min", "postgres": "Up 5 min", "api": "healthy",
-        }),
+        patch(
+            "arasul_tui.commands.n8n_cmd.n8n_health",
+            return_value={
+                "container": "Up 5 min",
+                "postgres": "Up 5 min",
+                "api": "healthy",
+            },
+        ),
         patch("arasul_tui.commands.n8n_cmd.n8n_list_workflows", return_value=[]),
         patch("arasul_tui.commands.n8n_cmd._ensure_n8n_project"),
     ):

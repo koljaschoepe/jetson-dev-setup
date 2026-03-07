@@ -91,15 +91,12 @@ def parallel_cmds(cmds: dict[str, tuple[str, int]]) -> dict[str, str]:
         return results
 
     with ThreadPoolExecutor(max_workers=min(8, len(uncached))) as pool:
-        futures = {
-            pool.submit(run_cmd, cmd, timeout): (key, cmd)
-            for key, (cmd, timeout) in uncached.items()
-        }
+        futures = {pool.submit(run_cmd, cmd, timeout): (key, cmd) for key, (cmd, timeout) in uncached.items()}
         for future in as_completed(futures):
             key, cmd = futures[future]
             try:
                 result = future.result()
-            except Exception as exc:
+            except (OSError, TimeoutError) as exc:
                 result = f"Error: {exc}"
             results[key] = result
             _cache.set(cmd, result)

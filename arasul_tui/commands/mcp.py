@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
-
-from arasul_tui.core.constants import CLAUDE_JSON
+from arasul_tui.core.claude_json import load_claude_json, save_claude_json
 from arasul_tui.core.shell import run_cmd
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.types import CommandResult
@@ -14,27 +12,12 @@ from arasul_tui.core.ui import (
 )
 
 
-def _load_claude_json() -> dict:
-    """Load ~/.claude.json, returning empty dict on failure."""
-    try:
-        if CLAUDE_JSON.exists():
-            return json.loads(CLAUDE_JSON.read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    return {}
-
-
-def _save_claude_json(data: dict) -> None:
-    """Write ~/.claude.json."""
-    CLAUDE_JSON.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
 def cmd_mcp(state: TuiState, args: list[str]) -> CommandResult:
     """MCP server management."""
     sub = args[0] if args else "list"
 
     if sub == "list":
-        data = _load_claude_json()
+        data = load_claude_json()
         servers = data.get("mcpServers", {})
         if not servers:
             print_info("No MCP servers configured.")
@@ -58,7 +41,7 @@ def cmd_mcp(state: TuiState, args: list[str]) -> CommandResult:
         command = args[2]
         cmd_args = args[3:] if len(args) > 3 else []
 
-        data = _load_claude_json()
+        data = load_claude_json()
         if "mcpServers" not in data:
             data["mcpServers"] = {}
 
@@ -66,13 +49,13 @@ def cmd_mcp(state: TuiState, args: list[str]) -> CommandResult:
             "command": command,
             "args": cmd_args,
         }
-        _save_claude_json(data)
+        save_claude_json(data)
         print_success(f"MCP server added: [bold]{name}[/bold]")
         return CommandResult(ok=True, style="silent")
 
     if sub == "test":
         name = args[1] if len(args) > 1 else None
-        data = _load_claude_json()
+        data = load_claude_json()
         servers = data.get("mcpServers", {})
 
         if not servers:
@@ -102,14 +85,14 @@ def cmd_mcp(state: TuiState, args: list[str]) -> CommandResult:
             return CommandResult(ok=False, style="silent")
 
         name = args[1]
-        data = _load_claude_json()
+        data = load_claude_json()
         servers = data.get("mcpServers", {})
         if name not in servers:
             print_error(f"MCP server not found: [bold]{name}[/bold]")
             return CommandResult(ok=False, style="silent")
 
         del servers[name]
-        _save_claude_json(data)
+        save_claude_json(data)
         print_success(f"MCP server removed: [bold]{name}[/bold]")
         return CommandResult(ok=True, style="silent")
 
