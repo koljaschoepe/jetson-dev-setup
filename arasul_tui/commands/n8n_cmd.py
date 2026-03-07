@@ -386,10 +386,13 @@ def _smart_flow(state: TuiState) -> CommandResult:
             print_warning(f"MCP setup failed: {msg}")
 
     # --- Step 5: Ensure n8n-workflows project exists ---
-    _ensure_n8n_project(state)
+    project_created = _ensure_n8n_project(state)
 
     # --- All good: show status ---
-    return _show_status()
+    result = _show_status()
+    if project_created:
+        result.refresh = True
+    return result
 
 
 def _api_key_finish(state: TuiState, raw: str) -> CommandResult:
@@ -413,15 +416,18 @@ def _api_key_finish(state: TuiState, raw: str) -> CommandResult:
     _ensure_n8n_project(state)
 
     print_success("n8n is ready! Open [bold]n8n-workflows[/bold] to start building workflows.")
-    return CommandResult(ok=True, style="silent")
+    return CommandResult(ok=True, style="silent", refresh=True)
 
 
 # ---------------------------------------------------------------------------
 # Auto-create n8n-workflows project
 # ---------------------------------------------------------------------------
 
-def _ensure_n8n_project(state: TuiState) -> None:
-    """Create the n8n-workflows project if it doesn't exist yet."""
+def _ensure_n8n_project(state: TuiState) -> bool:
+    """Create the n8n-workflows project if it doesn't exist yet.
+
+    Returns True if a new project was created (caller should refresh).
+    """
     from arasul_tui.core.n8n_project import scaffold_n8n_project
     from arasul_tui.core.projects import get_project, register_project
 
@@ -430,7 +436,9 @@ def _ensure_n8n_project(state: TuiState) -> None:
     # Already registered and exists on disk?
     existing = get_project("n8n-workflows")
     if existing and Path(existing.path).is_dir():
-        return
+        return False
+
+    created = False
 
     # Create directory + scaffold
     if not project_dir.exists():
@@ -438,10 +446,14 @@ def _ensure_n8n_project(state: TuiState) -> None:
         scaffold_n8n_project(project_dir)
         print_success("Project [bold]n8n-workflows[/bold] created.")
         print_info("CLAUDE.md and guardrails configured.")
+        created = True
 
     # Register in project list
     if not existing:
         register_project(name="n8n-workflows", path=project_dir, provider_default="claude")
+        created = True
+
+    return created
 
 
 # ---------------------------------------------------------------------------

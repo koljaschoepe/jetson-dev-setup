@@ -251,8 +251,7 @@ def run() -> None:
             wizard_step = result.wizard_step
 
         if result.refresh:
-            # Chat-flow: show compact context indicator instead of full redraw
-            print_header(state, full=False)
+            print_header(state, full=True)
 
         if result.launch_command and result.launch_cwd:
             launch_request = (result.launch_command, result.launch_cwd)
