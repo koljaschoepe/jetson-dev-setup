@@ -343,11 +343,13 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
         lines.append(f"  [{PRIMARY}]{i}[/{PRIMARY}]  {name}  {detail}")
 
     if not projects:
-        lines.append(f"  [{DIM}]No projects yet. Type 'new' to create one, or 'clone' to grab a repo.[/{DIM}]")
+        lines.append(f"  [{DIM}]No projects yet.[/{DIM}]")
+        lines.append(f"  [{DIM}]Type 'new' to create one, or 'clone' to grab a repo.[/{DIM}]")
 
     lines.append("")
     if projects:
-        lines.append(f"  [{DIM}]Open a project by name or number. Try 'status', 'new', or 'help'.[/{DIM}]")
+        lines.append(f"  [{DIM}]Open a project by name or number.[/{DIM}]")
+        lines.append(f"  [{DIM}]Try 'status', 'new', or 'help'.[/{DIM}]")
     else:
         lines.append(f"  [{DIM}]Type what you need — 'help' shows everything.[/{DIM}]")
 
