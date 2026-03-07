@@ -143,16 +143,7 @@ def build_registry() -> CommandRegistry:
         "n8n", cmd_n8n, "Workflow automation", category="Services",
         aliases=["workflows", "automation"],
         subcommands={
-            "status": "Dashboard",
-            "install": "Install stack",
-            "start": "Start containers",
             "stop": "Stop containers",
-            "logs": "View logs",
-            "workflows": "List workflows",
-            "open": "Web UI URL",
-            "api-key": "Set API key",
-            "mcp": "Configure MCP server",
-            "backup": "Backup workflows + DB",
         },
     ))
 
