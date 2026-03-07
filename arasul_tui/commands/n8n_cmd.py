@@ -19,6 +19,7 @@ from pathlib import Path
 
 from rich import box
 from rich.live import Live
+from rich.padding import Padding
 from rich.panel import Panel
 
 from arasul_tui.core.n8n_client import (
@@ -41,6 +42,8 @@ from arasul_tui.core.state import TuiState
 from arasul_tui.core.theme import BAR_EMPTY, BAR_FILLED, DIM, PRIMARY, SUCCESS
 from arasul_tui.core.types import CommandResult
 from arasul_tui.core.ui import (
+    _adaptive_width,
+    _frame_left_pad,
     console,
     content_pad,
     print_error,
@@ -107,8 +110,8 @@ def _build_install_panel(
     elapsed: float,
     done: bool,
     failed: bool,
-) -> Panel:
-    """Build the animated installation panel."""
+) -> Padding:
+    """Build the animated installation panel, matching print_styled_panel layout."""
     lines: list[str] = [""]
 
     total = len(_STEPS)
@@ -155,14 +158,19 @@ def _build_install_panel(
     elif failed:
         title = "[bold red]n8n Setup[/bold red]"
 
-    return Panel(
+    # Match print_styled_panel: width = _adaptive_width() - 4, left pad = _frame_left_pad() + 2
+    panel_w = _adaptive_width() - 4
+    left_pad = _frame_left_pad() + 2
+
+    panel = Panel(
         content,
         title=title,
         border_style=SUCCESS if done else ("red" if failed else DIM),
         box=box.ROUNDED,
         padding=(0, 1),
-        width=52,
+        width=panel_w,
     )
+    return Padding(panel, (0, 0, 0, left_pad))
 
 
 def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
