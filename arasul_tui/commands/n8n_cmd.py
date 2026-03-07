@@ -30,6 +30,7 @@ from arasul_tui.core.n8n_client import (
     n8n_health,
     n8n_is_installed,
     n8n_is_running,
+    n8n_lan_url,
     n8n_list_workflows,
     n8n_save_api_key,
 )
@@ -99,7 +100,7 @@ _STEPS = [
     ("Compose file", "n8n + PostgreSQL stack"),
     ("Pulling images", "this may take a few minutes"),
     ("Starting containers", "n8n + PostgreSQL"),
-    ("Health check", N8N_BASE_URL),
+    ("Health check", "waiting for API"),
 ]
 
 
@@ -298,7 +299,8 @@ def _show_status() -> CommandResult:
         rows.append(("MCP Server", "[dim]not set[/dim]"))
 
     # URLs
-    rows.append(("Web UI", f"[cyan]{N8N_BASE_URL}[/cyan]"))
+    lan = n8n_lan_url()
+    rows.append(("Web UI", f"[cyan]{lan}[/cyan]"))
     rows.append(("Data", f"[dim]{N8N_DIR}[/dim]"))
 
     print_styled_panel("n8n Automation", rows)
@@ -360,13 +362,14 @@ def _smart_flow(state: TuiState) -> CommandResult:
             print_error("n8n failed to start.")
             return CommandResult(ok=False, style="silent")
 
-        print_success(f"n8n started at [bold]{N8N_BASE_URL}[/bold]")
+        print_success(f"n8n started at [bold]{n8n_lan_url()}[/bold]")
 
     # --- Step 3: API key if missing ---
     api_key = n8n_get_api_key()
     if not api_key:
         console.print()
-        print_info(f"Open [bold cyan]{N8N_BASE_URL}/settings/api[/bold cyan] and create an API key.")
+        lan = n8n_lan_url()
+        print_info(f"Open [bold cyan]{lan}/settings/api[/bold cyan] and create an API key.")
         return CommandResult(
             ok=True,
             style="silent",
