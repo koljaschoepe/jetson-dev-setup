@@ -9,16 +9,24 @@ from urllib.request import Request, urlopen
 
 from arasul_tui.core.shell import run_cmd
 
-N8N_DIR = Path("/mnt/nvme/n8n")
-N8N_COMPOSE = N8N_DIR / "docker-compose.yml"
 N8N_CONFIG = Path.home() / ".config" / "arasul" / "n8n.yaml"
+
+
+def n8n_dir() -> Path:
+    from arasul_tui.core.platform import get_platform
+
+    return get_platform().storage.mount / "n8n"
+
+
+def _n8n_compose() -> Path:
+    return n8n_dir() / "docker-compose.yml"
 N8N_BASE_URL = "http://localhost:5678"
 API_TIMEOUT = 5
 
 
 def n8n_is_installed() -> bool:
     """Check if n8n docker-compose stack exists on disk."""
-    return N8N_COMPOSE.exists()
+    return _n8n_compose().exists()
 
 
 def n8n_is_running() -> bool:
@@ -135,6 +143,6 @@ def n8n_save_api_key(key: str) -> None:
 def n8n_compose_cmd(subcmd: str) -> str:
     """Run docker compose command in n8n directory. Returns output."""
     return run_cmd(
-        f"docker compose -f {N8N_COMPOSE} {subcmd} 2>&1",
+        f"docker compose -f {_n8n_compose()} {subcmd} 2>&1",
         timeout=30,
     )

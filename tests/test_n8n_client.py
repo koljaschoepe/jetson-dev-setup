@@ -14,14 +14,14 @@ from arasul_tui.core.n8n_client import (
 
 
 def test_n8n_is_installed_false():
-    with patch("arasul_tui.core.n8n_client.N8N_COMPOSE", Path("/nonexistent/docker-compose.yml")):
+    with patch("arasul_tui.core.n8n_client.n8n_dir", return_value=Path("/nonexistent")):
         assert n8n_is_installed() is False
 
 
 def test_n8n_is_installed_true(tmp_path: Path):
     compose = tmp_path / "docker-compose.yml"
     compose.write_text("version: '3.8'")
-    with patch("arasul_tui.core.n8n_client.N8N_COMPOSE", compose):
+    with patch("arasul_tui.core.n8n_client.n8n_dir", return_value=tmp_path):
         assert n8n_is_installed() is True
 
 

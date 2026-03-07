@@ -12,7 +12,7 @@ from prompt_toolkit.styles import Style
 
 from arasul_tui.core.auth import get_auth_env, is_claude_configured
 from arasul_tui.core.router import REGISTRY, run_command
-from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
+from arasul_tui.core.state import Screen, TuiState
 from arasul_tui.core.types import PendingHandler
 from arasul_tui.core.ui import (
     build_prompt,
@@ -175,7 +175,7 @@ def _handle_number(state: TuiState, num: int) -> bool:
     projects = project_list()
     if 1 <= num <= len(projects):
         name = projects[num - 1]
-        target = (DEFAULT_PROJECT_ROOT / name).resolve()
+        target = (state.project_root / name).resolve()
         if target.exists() and target.is_dir():
             state.active_project = target
             state.screen = Screen.PROJECT
@@ -246,7 +246,7 @@ def _try_fuzzy_project(state: TuiState, command: str) -> bool:
     matches = _fuzzy_match(command, projects)
 
     if len(matches) == 1:
-        target = (DEFAULT_PROJECT_ROOT / matches[0]).resolve()
+        target = (state.project_root / matches[0]).resolve()
         if target.exists() and target.is_dir():
             state.active_project = target
             state.screen = Screen.PROJECT

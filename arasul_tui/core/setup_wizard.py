@@ -36,7 +36,8 @@ SETUP_STEPS: list[SetupStep] = [
         name="System Optimize",
         description="Disable GUI, reduce services, tune kernel",
         script="scripts/01-system-optimize.sh",
-        check_done=lambda: _file_exists("/etc/sysctl.d/99-jetson-dev.conf"),
+        check_done=lambda: _file_exists("/etc/sysctl.d/99-arasul-system.conf")
+        or _file_exists("/etc/sysctl.d/99-jetson-dev.conf"),
     ),
     SetupStep(
         number=2,
@@ -50,14 +51,15 @@ SETUP_STEPS: list[SetupStep] = [
         name="SSH Hardening",
         description="Key-only auth, fail2ban",
         script="scripts/03-ssh-harden.sh",
-        check_done=lambda: _file_exists("/etc/ssh/sshd_config.d/99-jetson-hardened.conf"),
+        check_done=lambda: _file_exists("/etc/ssh/sshd_config.d/99-arasul-hardened.conf")
+        or _file_exists("/etc/ssh/sshd_config.d/99-jetson-hardened.conf"),
     ),
     SetupStep(
         number=4,
-        name="NVMe Setup",
+        name="Storage Setup",
         description="Partition, mount, swap, I/O scheduler",
-        script="scripts/04-nvme-setup.sh",
-        check_done=lambda: _file_exists("/mnt/nvme"),
+        script="scripts/04-storage-setup.sh",
+        check_done=lambda: _file_exists("/mnt/data") or _file_exists("/mnt/nvme"),
     ),
     SetupStep(
         number=5,

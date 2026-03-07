@@ -1,13 +1,13 @@
 # Contributing to Arasul
 
-Thank you for your interest in contributing! This project helps people set up NVIDIA Jetson devices as headless development servers.
+Thank you for your interest in contributing! This project helps people set up Linux SBCs (Jetson, Raspberry Pi, and more) as headless development servers.
 
 ## How to Contribute
 
 ### Reporting Issues
 
-- Use [GitHub Issues](https://github.com/koljaschoepe/jetson-dev-setup/issues) to report bugs or request features
-- Include your JetPack version, Jetson model, and relevant log output
+- Use [GitHub Issues](https://github.com/koljaschoepe/arasul/issues) to report bugs or request features
+- Include your platform (Jetson/RPi/other), OS version, and relevant log output
 - Check existing issues before creating a new one
 
 ### Pull Requests
@@ -24,8 +24,8 @@ Thank you for your interest in contributing! This project helps people set up NV
 ### Development Setup
 
 ```bash
-git clone https://github.com/koljaschoepe/jetson-dev-setup.git
-cd jetson-dev-setup
+git clone https://github.com/koljaschoepe/arasul.git
+cd arasul
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -53,7 +53,7 @@ pytest tests/
 
 ### Areas Where Help Is Appreciated
 
-- Support for additional Jetson models (AGX Orin, Orin NX)
+- Support for additional SBC platforms (Orange Pi, Rock Pi)
 - Translations of documentation
 - Additional setup scripts for common use cases
 - Improved error handling and recovery in setup scripts

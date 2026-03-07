@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.1.x   | :white_check_mark: |
+| 0.5.x   | :white_check_mark: |
+| 0.3.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
@@ -21,7 +22,7 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Security Measures
 
-This project implements the following security measures on the Jetson device:
+This project implements the following security measures on the target device:
 
 - **SSH**: Key-only authentication, password login disabled
 - **Firewall**: UFW with deny-all incoming policy (only SSH + mDNS allowed)

@@ -14,9 +14,17 @@ echo "[arasul] Installing dependencies..."
 python -m pip install --upgrade pip
 python -m pip install -e "${REPO_ROOT}"
 
-NVME_BROWSER_CACHE="/mnt/nvme/playwright-browsers"
-if [[ -d "/mnt/nvme" ]]; then
-  BROWSER_CACHE="${NVME_BROWSER_CACHE}"
+# Detect storage mount for browser cache
+if [[ -f "${REPO_ROOT}/lib/detect.sh" ]]; then
+  # shellcheck source=../lib/detect.sh
+  source "${REPO_ROOT}/lib/detect.sh"
+  STORAGE_MOUNT="$(detect_storage_mount)"
+else
+  STORAGE_MOUNT="${HOME}"
+fi
+
+if [[ -d "${STORAGE_MOUNT}" && "${STORAGE_MOUNT}" != "${HOME}" ]]; then
+  BROWSER_CACHE="${STORAGE_MOUNT}/playwright-browsers"
 else
   BROWSER_CACHE="${HOME}/.cache/ms-playwright"
 fi

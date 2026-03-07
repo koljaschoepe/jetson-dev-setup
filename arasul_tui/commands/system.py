@@ -34,8 +34,13 @@ from arasul_tui.core.ui import (
 
 
 def cmd_status(state: TuiState, _: list[str]) -> CommandResult:
+    from arasul_tui.core.platform import get_platform
+
+    platform = get_platform()
+
     vm = psutil.virtual_memory()
-    disk = psutil.disk_usage("/mnt/nvme" if Path("/mnt/nvme").exists() else "/")
+    storage_path = str(platform.storage.mount)
+    disk = psutil.disk_usage(storage_path if Path(storage_path).exists() else "/")
     uptime_s = int(dt.datetime.now().timestamp() - psutil.boot_time())
     hours, rem = divmod(uptime_s, 3600)
     mins = rem // 60
@@ -45,34 +50,58 @@ def cmd_status(state: TuiState, _: list[str]) -> CommandResult:
     ip = run_cmd(f"ip -4 addr show {shlex.quote(iface)} | awk '/inet/{{print $2}}' | cut -d/ -f1")
     if not ip or ip.startswith("Error"):
         ip = run_cmd("hostname -I | awk '{print $1}'") or "n/a"
-    power = run_cmd("sudo nvpmodel -q | head -1 | sed 's/NV Power Mode: //'") or "n/a"
-    temp = run_cmd("cat /sys/devices/virtual/thermal/thermal_zone0/temp | awk '{printf \"%.0f\", $1/1000}'")
-    temp_str = f"{temp}°C" if temp and temp.isdigit() else "n/a"
 
-    gpu = run_cmd("cat /sys/devices/gpu.0/load 2>/dev/null")
-    gpu_str = f"{int(gpu) // 10}%" if gpu and gpu.isdigit() else "n/a"
+    # Temperature (vcgencmd on RPi, thermal zone elsewhere)
+    if platform.is_raspberry_pi:
+        temp = run_cmd("vcgencmd measure_temp 2>/dev/null | awk -F'[=.]' '{print $2}'")
+    else:
+        temp = run_cmd(
+            "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null"
+            " | awk '{printf \"%.0f\", $1/1000}'"
+        )
+    temp_str = f"{temp}°C" if temp and temp.isdigit() else "n/a"
 
     docker = str(docker_running_count())
     root = state.project_root
     project_count = len([p for p in root.iterdir() if p.is_dir()]) if root.exists() else 0
     project_name = state.active_project.name if state.active_project else "[dim]-[/dim]"
 
-    print_kv(
-        [
-            ("Host", socket.gethostname()),
-            ("Uptime", uptime),
-            ("RAM", f"{vm.used // (1024 * 1024)}M / {vm.total // (1024 * 1024)}M ({vm.percent:.0f}%)"),
-            ("NVMe", f"{disk.used // (1024**3)}G / {disk.total // (1024**3)}G ({disk.percent:.0f}%)"),
-            ("Temp", temp_str),
-            ("GPU", gpu_str),
-            ("LAN", ip),
-            ("Power", power),
-            ("Docker", f"{docker} running"),
-            ("Projects", str(project_count)),
-            ("Active", project_name),
-        ],
-        title="System Status",
-    )
+    # Storage label based on type
+    storage_label = "NVMe" if platform.storage.type == "nvme" else "Storage"
+
+    rows: list[tuple[str, str]] = [
+        ("Host", socket.gethostname()),
+        ("Uptime", uptime),
+        ("RAM", f"{vm.used // (1024 * 1024)}M / {vm.total // (1024 * 1024)}M ({vm.percent:.0f}%)"),
+        (storage_label, f"{disk.used // (1024**3)}G / {disk.total // (1024**3)}G ({disk.percent:.0f}%)"),
+        ("Temp", temp_str),
+    ]
+
+    # Platform-specific rows
+    if platform.is_jetson:
+        gpu = run_cmd("cat /sys/devices/gpu.0/load 2>/dev/null")
+        gpu_str = f"{int(gpu) // 10}%" if gpu and gpu.isdigit() else "n/a"
+        power = run_cmd("sudo nvpmodel -q | head -1 | sed 's/NV Power Mode: //'") or "n/a"
+        rows.append(("GPU", gpu_str))
+        rows.append(("Power", power))
+    elif platform.is_raspberry_pi:
+        freq = run_cmd(
+            "vcgencmd measure_clock arm 2>/dev/null | awk -F= '{printf \"%.0f\", $2/1000000}'"
+        )
+        if freq and freq.isdigit():
+            rows.append(("CPU Freq", f"{freq} MHz"))
+        throttle = run_cmd("vcgencmd get_throttled 2>/dev/null | awk -F= '{print $2}'")
+        if throttle and throttle != "0x0":
+            rows.append(("Throttle", f"[yellow]{throttle}[/yellow]"))
+
+    rows.extend([
+        ("LAN", ip),
+        ("Docker", f"{docker} running"),
+        ("Projects", str(project_count)),
+        ("Active", project_name),
+    ])
+
+    print_kv(rows, title="System Status")
     return CommandResult(ok=True, style="silent", refresh=True)
 
 
@@ -100,13 +129,23 @@ def cmd_health(state: TuiState, _: list[str]) -> CommandResult:
     swap = psutil.swap_memory()
     rows.append(("Swap", f"{swap.percent:.0f}% ({swap.used // (1024 * 1024)}M / {swap.total // (1024 * 1024)}M)"))
 
-    # NVMe health
+    # Storage health
     cw = content_width()
-    nvme_health = run_cmd("sudo smartctl -A /dev/nvme0n1 2>/dev/null | grep 'Percentage Used'", timeout=5)
-    if nvme_health and ":" in nvme_health:
-        rows.append(("NVMe Health", truncate(nvme_health.split(":", 1)[-1].strip(), cw)))
-    else:
-        rows.append(("NVMe Health", "n/a"))
+    from arasul_tui.core.platform import get_platform
+    platform = get_platform()
+    if platform.storage.type == "nvme":
+        nvme_dev = platform.storage.device or "/dev/nvme0n1"
+        nvme_health = run_cmd(
+            f"sudo smartctl -A {shlex.quote(nvme_dev)} 2>/dev/null | grep 'Percentage Used'",
+            timeout=5,
+        )
+        if nvme_health and ":" in nvme_health:
+            rows.append(("NVMe Health", truncate(nvme_health.split(":", 1)[-1].strip(), cw)))
+        else:
+            rows.append(("NVMe Health", "n/a"))
+    elif platform.storage.is_external:
+        disk = psutil.disk_usage(str(platform.storage.mount))
+        rows.append(("Storage", f"{disk.percent:.0f}% used"))
 
     # Temperature
     temp = run_cmd("cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'")

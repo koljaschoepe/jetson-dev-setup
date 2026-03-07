@@ -19,24 +19,23 @@ def test_browsers_path_from_env(tmp_path: Path):
         assert _browsers_path() == Path(custom)
 
 
-def test_browsers_path_nvme(tmp_path: Path):
-    nvme_cache = tmp_path / "playwright-browsers"
-    nvme_cache.mkdir()
+def test_browsers_path_external_storage(tmp_path: Path):
+    cache = tmp_path / "playwright-browsers"
+    cache.mkdir()
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("arasul_tui.core.browser.NVME_BROWSER_CACHE", nvme_cache),
+        patch("arasul_tui.core.browser._storage_browser_cache", return_value=cache),
     ):
-        # Remove PLAYWRIGHT_BROWSERS_PATH if set
         os.environ.pop("PLAYWRIGHT_BROWSERS_PATH", None)
-        assert _browsers_path() == nvme_cache
+        assert _browsers_path() == cache
 
 
 def test_browsers_path_fallback(tmp_path: Path):
-    nvme_cache = tmp_path / "nonexistent"
+    nonexistent = tmp_path / "nonexistent"
     fallback = tmp_path / "fallback-cache"
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("arasul_tui.core.browser.NVME_BROWSER_CACHE", nvme_cache),
+        patch("arasul_tui.core.browser._storage_browser_cache", return_value=nonexistent),
         patch("arasul_tui.core.browser.FALLBACK_BROWSER_CACHE", fallback),
     ):
         os.environ.pop("PLAYWRIGHT_BROWSERS_PATH", None)

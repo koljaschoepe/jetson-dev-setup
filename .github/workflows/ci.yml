@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run ShellCheck
-        run: shellcheck -x --exclude=SC1091 scripts/*.sh setup.sh arasul_tui/install.sh
+        run: shellcheck -x --exclude=SC1091 scripts/*.sh setup.sh arasul_tui/install.sh lib/detect.sh
 
   test:
     name: Test Python ${{ matrix.python-version }}
@@ -39,4 +39,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      - run: pytest tests/ -v --tb=short --cov=arasul_tui --cov-report=term-missing --cov-fail-under=55
+      - run: pytest tests/ -v --tb=short --cov=arasul_tui --cov-report=term-missing --cov-fail-under=56

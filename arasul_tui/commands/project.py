@@ -11,12 +11,11 @@ from arasul_tui.core.projects import (
 )
 from arasul_tui.core.state import TuiState
 from arasul_tui.core.templates import (
-    TEMPLATES,
     create_conda_env,
     get_template,
     install_miniforge,
     is_miniforge_installed,
-    list_templates,
+    list_available_templates,
     scaffold_project,
 )
 from arasul_tui.core.types import CommandResult
@@ -138,9 +137,13 @@ def _create_finish(state: TuiState, user_input: str) -> CommandResult:
 def _create_template(state: TuiState, name: str, template_name: str) -> CommandResult:
     """Create a project with a template (conda env + starter files)."""
     template = get_template(template_name)
-    if not template:
-        valid = ", ".join(f"[bold]{t}[/bold]" for t in TEMPLATES)
-        print_error(f"Unknown template: [bold]{template_name}[/bold]")
+    available = list_available_templates()
+    if not template or template not in available:
+        valid = ", ".join(f"[bold]{t.name}[/bold]" for t in available)
+        if template and template not in available:
+            print_error(f"Template [bold]{template_name}[/bold] requires CUDA (not available on this device)")
+        else:
+            print_error(f"Unknown template: [bold]{template_name}[/bold]")
         print_info(f"Available: {valid}")
         return CommandResult(ok=False, style="silent")
 
@@ -208,7 +211,10 @@ def _create_template(state: TuiState, name: str, template_name: str) -> CommandR
     console.print()
     print_success(f"Project [bold]{name}[/bold] created ({template.label})")
     print_info(f"Path: [dim]{target}[/dim]")
-    print_info(f"Env: [dim]/mnt/nvme/envs/{name}[/dim]")
+    from arasul_tui.core.platform import get_platform
+
+    env_path = get_platform().storage.mount / "envs" / name
+    print_info(f"Env: [dim]{env_path}[/dim]")
     print_info("Press [bold]c[/bold] to open in Claude Code")
     return CommandResult(ok=True, style="silent", refresh=True)
 

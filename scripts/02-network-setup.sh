@@ -12,13 +12,13 @@ source "$(dirname "$0")/../lib/common.sh"
 # Set hostname
 # ---------------------------------------------------------------------------
 CURRENT_HOSTNAME=$(hostnamectl --static)
-if [[ "$CURRENT_HOSTNAME" != "$JETSON_HOSTNAME" ]]; then
-    hostnamectl set-hostname "$JETSON_HOSTNAME"
+if [[ "$CURRENT_HOSTNAME" != "$DEVICE_HOSTNAME" ]]; then
+    hostnamectl set-hostname "$DEVICE_HOSTNAME"
     sed -i "/127.0.1.1/d" /etc/hosts
-    echo "127.0.1.1    ${JETSON_HOSTNAME}" >> /etc/hosts
-    log "Hostname set: ${JETSON_HOSTNAME}"
+    echo "127.0.1.1    ${DEVICE_HOSTNAME}" >> /etc/hosts
+    log "Hostname set: ${DEVICE_HOSTNAME}"
 else
-    skip "Hostname already ${JETSON_HOSTNAME}"
+    skip "Hostname already ${DEVICE_HOSTNAME}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ if ! dpkg -l avahi-daemon 2>/dev/null | grep -q "^ii"; then
 fi
 
 systemctl enable --now avahi-daemon 2>/dev/null || true
-log "mDNS active — reachable as ${JETSON_HOSTNAME}.local"
+log "mDNS active — reachable as ${DEVICE_HOSTNAME}.local"
 
 # ---------------------------------------------------------------------------
 # UFW Firewall
@@ -75,7 +75,7 @@ DEFAULT_IFACE=$(ip route show default 2>/dev/null | awk '/default/{print $5; exi
 DEFAULT_IFACE="${DEFAULT_IFACE:-eth0}"
 ETH_IP=$(ip -4 addr show "$DEFAULT_IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "not connected")
 log "Ethernet IP: ${ETH_IP}"
-log "mDNS: ${JETSON_HOSTNAME}.local"
+log "mDNS: ${DEVICE_HOSTNAME}.local"
 
 # ---------------------------------------------------------------------------
 # Tailscale (optional)

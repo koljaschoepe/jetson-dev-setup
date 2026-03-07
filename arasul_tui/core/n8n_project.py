@@ -8,7 +8,7 @@ from pathlib import Path
 
 N8N_URL_DEFAULT = "http://localhost:5678"
 
-# Paths relative to the repo checkout (used on the Jetson)
+# Paths relative to the repo checkout
 _REPO_CONFIG = Path(__file__).parent.parent.parent / "config" / "n8n"
 _TEMPLATE = _REPO_CONFIG / "CLAUDE.md.template"
 _SETTINGS = _REPO_CONFIG / "settings.json"
@@ -57,14 +57,17 @@ def scaffold_n8n_project(project_dir: Path, n8n_url: str | None = None) -> bool:
         shutil.copy2(_SETTINGS, claude_dir / "settings.json")
     else:
         # Minimal fallback
+        from arasul_tui.core.n8n_client import n8n_dir
+
+        nd = n8n_dir()
         settings = {
             "permissions": {
                 "deny": [
                     "Bash(docker *)",
                     "Bash(sudo *)",
-                    "Edit(/mnt/nvme/n8n/*)",
+                    f"Edit({nd}/*)",
                     "Edit(/etc/*)",
-                    "Read(/mnt/nvme/n8n/.env)",
+                    f"Read({nd}/.env)",
                 ]
             }
         }

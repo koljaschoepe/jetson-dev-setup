@@ -3,7 +3,7 @@
 # 08 — Headless Browser Setup (Playwright + Chromium)
 # =============================================================================
 # Installs Playwright with headless Chromium for AI agent browser automation.
-# Installed in the Arasul TUI venv and cached on NVMe.
+# Installed in the Arasul TUI venv, cached on external storage if available.
 #
 # Idempotent: can be run multiple times, skips already completed steps.
 # =============================================================================
@@ -13,12 +13,15 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
 
+# shellcheck source=../lib/detect.sh
+source "$(dirname "$0")/../lib/detect.sh"
+
 REAL_USER="${REAL_USER:-$(logname 2>/dev/null || echo "${SUDO_USER:-$USER}")}"
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 REAL_HOME="${REAL_HOME:-/home/${REAL_USER}}"
-NVME_MOUNT="${NVME_MOUNT:-/mnt/nvme}"
+STORAGE_MOUNT="${STORAGE_MOUNT:-$(detect_storage_mount)}"
 VENV_DIR="${REAL_HOME}/venvs/arasul"
-BROWSER_CACHE="${NVME_MOUNT}/playwright-browsers"
+BROWSER_CACHE="${STORAGE_MOUNT}/playwright-browsers"
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks
@@ -80,7 +83,7 @@ install_playwright_package() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. Set up browser cache on NVMe
+# 3. Set up browser cache on storage
 # ---------------------------------------------------------------------------
 setup_browser_cache() {
     if [[ -d "$BROWSER_CACHE" ]]; then
@@ -88,7 +91,7 @@ setup_browser_cache() {
         return 0
     fi
 
-    log "Creating browser cache on NVMe: ${BROWSER_CACHE}"
+    log "Creating browser cache: ${BROWSER_CACHE}"
     mkdir -p "$BROWSER_CACHE"
     chown "${REAL_USER}:${REAL_USER}" "$BROWSER_CACHE"
 

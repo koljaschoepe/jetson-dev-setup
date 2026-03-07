@@ -17,7 +17,7 @@ if [[ ! -f "$AUTH_KEYS" ]] || [[ ! -s "$AUTH_KEYS" ]]; then
     err "No SSH authorized_keys found for ${REAL_USER}!"
     err ""
     err "Copy your SSH key first:"
-    err "  ssh-copy-id -i ~/.ssh/id_ed25519.pub ${REAL_USER}@${JETSON_HOSTNAME}.local"
+    err "  ssh-copy-id -i ~/.ssh/id_ed25519.pub ${REAL_USER}@${DEVICE_HOSTNAME}.local"
     err ""
     err "SSH hardening skipped to prevent lockout"
     exit 2
@@ -29,11 +29,18 @@ log "${KEY_COUNT} SSH key(s) found in authorized_keys"
 # ---------------------------------------------------------------------------
 # Harden SSH daemon
 # ---------------------------------------------------------------------------
-SSHD_DROPIN="/etc/ssh/sshd_config.d/99-jetson-hardened.conf"
+SSHD_DROPIN="/etc/ssh/sshd_config.d/99-arasul-hardened.conf"
+SSHD_LEGACY="/etc/ssh/sshd_config.d/99-jetson-hardened.conf"
+
+# Rename old config if upgrading
+if [[ -f "$SSHD_LEGACY" ]] && [[ ! -f "$SSHD_DROPIN" ]]; then
+    mv "$SSHD_LEGACY" "$SSHD_DROPIN"
+    log "Renamed SSH config: 99-jetson-hardened.conf → 99-arasul-hardened.conf"
+fi
 
 if [[ ! -f "$SSHD_DROPIN" ]]; then
     cat > "$SSHD_DROPIN" << 'EOF'
-# Jetson Dev Server — SSH Hardening
+# Arasul — SSH Hardening
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no

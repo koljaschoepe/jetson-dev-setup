@@ -13,11 +13,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-NVME_BASE = Path("/mnt/nvme")
-MINIFORGE_DIR = NVME_BASE / "miniforge3"
-CONDA_BIN = MINIFORGE_DIR / "bin" / "conda"
-ENVS_DIR = NVME_BASE / "envs"
 TEMPLATE_DIR = Path(__file__).parent.parent.parent / "config" / "templates"
+
+
+def _storage_mount() -> Path:
+    from arasul_tui.core.platform import get_platform
+
+    return get_platform().storage.mount
+
+
+def _miniforge_dir() -> Path:
+    return _storage_mount() / "miniforge3"
+
+
+def _conda_bin() -> Path:
+    return _miniforge_dir() / "bin" / "conda"
+
+
+def _envs_dir() -> Path:
+    return _storage_mount() / "envs"
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +51,7 @@ class TemplateConfig:
     has_docker: bool = False
     has_dotenv: bool = True
     starter_files: list[str] = field(default_factory=list)
+    requires_cuda: bool = False
 
 
 TEMPLATES: dict[str, TemplateConfig] = {
@@ -48,6 +63,7 @@ TEMPLATES: dict[str, TemplateConfig] = {
         pip_packages=["torch", "torchvision", "torchaudio"],
         pip_extra_index="https://developer.download.nvidia.com/compute/redist/jp/v61",
         starter_files=["main.py", "requirements.txt"],
+        requires_cuda=True,
     ),
     "vision": TemplateConfig(
         name="vision",
@@ -58,6 +74,7 @@ TEMPLATES: dict[str, TemplateConfig] = {
         pip_extra_index="https://developer.download.nvidia.com/compute/redist/jp/v61",
         has_docker=True,
         starter_files=["detect.py", "requirements.txt", "docker-compose.yml"],
+        requires_cuda=True,
     ),
     "api": TemplateConfig(
         name="api",
@@ -99,6 +116,14 @@ def list_templates() -> list[TemplateConfig]:
     return list(TEMPLATES.values())
 
 
+def list_available_templates() -> list[TemplateConfig]:
+    """Return templates available on the current platform (filters by GPU)."""
+    from arasul_tui.core.platform import get_platform
+
+    p = get_platform()
+    return [t for t in TEMPLATES.values() if not t.requires_cuda or p.gpu.has_cuda]
+
+
 def get_template(name: str) -> TemplateConfig | None:
     return TEMPLATES.get(name)
 
@@ -109,7 +134,8 @@ def get_template(name: str) -> TemplateConfig | None:
 
 
 def is_miniforge_installed() -> bool:
-    return CONDA_BIN.exists() and CONDA_BIN.is_file()
+    cb = _conda_bin()
+    return cb.exists() and cb.is_file()
 
 
 def install_miniforge(on_progress: Any = None) -> tuple[bool, str]:
@@ -144,7 +170,7 @@ def install_miniforge(on_progress: Any = None) -> tuple[bool, str]:
 
 def _run_conda(args: list[str], timeout: int = 600) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(CONDA_BIN)] + args,
+        [str(_conda_bin())] + args,
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -157,7 +183,7 @@ def create_conda_env(
     on_progress: Any = None,
 ) -> tuple[bool, str]:
     """Create an isolated conda env for a project. Returns (success, message)."""
-    env_path = ENVS_DIR / project_name
+    env_path = _envs_dir() / project_name
 
     if env_path.exists():
         return False, f"Environment already exists: {env_path}"
@@ -213,7 +239,7 @@ def create_conda_env(
 
 def remove_conda_env(project_name: str) -> tuple[bool, str]:
     """Remove a conda env. Returns (success, message)."""
-    env_path = ENVS_DIR / project_name
+    env_path = _envs_dir() / project_name
     if not env_path.exists():
         return True, "Environment does not exist"
     try:
@@ -227,31 +253,81 @@ def remove_conda_env(project_name: str) -> tuple[bool, str]:
 # CLAUDE.md generation
 # ---------------------------------------------------------------------------
 
-_CLAUDE_MD_HEADER = """\
-# {project_name} — Claude Code Context
+def _generate_header(project_name: str, python_version: str) -> str:
+    """Build the CLAUDE.md hardware section from detected platform."""
+    from arasul_tui.core.platform import get_platform
 
-## Hardware
-- **Device:** NVIDIA Jetson Orin Nano Super Developer Kit (8GB shared RAM)
-- **GPU:** 1024 CUDA Cores (Ampere), CUDA 12.6
-- **Arch:** ARM64 (aarch64)
-- **OS:** JetPack 6.2.2 (Ubuntu 22.04)
+    p = get_platform()
+    mount = p.storage.mount
 
-## Environment
-- **Python:** {python_version} (Miniforge3 conda)
-- **Env path:** /mnt/nvme/envs/{project_name}/
-- **Activate:** `source /mnt/nvme/miniforge3/bin/activate /mnt/nvme/envs/{project_name}`
+    lines = [f"# {project_name} — Claude Code Context", "", "## Hardware"]
 
-## Constraints
-- 8GB RAM shared between CPU and GPU — monitor memory usage
-- ARM64 — not all PyPI wheels available, prefer conda-forge
-- Docker images must be linux/arm64 or multi-arch
-"""
+    if p.is_jetson:
+        ram_gb = p.ram_mb // 1024 or 8
+        cuda = p.gpu.cuda_version or "12.6"
+        lines += [
+            f"- **Device:** {p.model} ({ram_gb}GB shared RAM)",
+            f"- **GPU:** CUDA {cuda} (Ampere)",
+            "- **Arch:** ARM64 (aarch64)",
+        ]
+    elif p.is_raspberry_pi:
+        ram_gb = p.ram_mb // 1024 or 4
+        lines += [
+            f"- **Device:** {p.model}",
+            f"- **RAM:** {ram_gb}GB",
+            "- **Arch:** ARM64 (aarch64)",
+        ]
+    else:
+        arch_line = "- **Arch:** ARM64 (aarch64)" if p.arch == "aarch64" else f"- **Arch:** {p.arch}"
+        lines += [
+            f"- **Device:** {p.model}",
+            f"- **RAM:** {p.ram_mb // 1024}GB",
+            arch_line,
+        ]
 
-_TEMPLATE_SECTIONS: dict[str, str] = {
-    "python-gpu": """
+    lines += [
+        "",
+        "## Environment",
+        f"- **Python:** {python_version} (Miniforge3 conda)",
+        f"- **Env path:** {mount / 'envs' / project_name}/",
+        f"- **Activate:** `source {mount / 'miniforge3' / 'bin' / 'activate'} {mount / 'envs' / project_name}`",
+        "",
+        "## Constraints",
+    ]
+
+    if p.is_jetson:
+        ram_gb = p.ram_mb // 1024 or 8
+        lines += [
+            f"- {ram_gb}GB RAM shared between CPU and GPU — monitor memory usage",
+            "- ARM64 — not all PyPI wheels available, prefer conda-forge",
+            "- Docker images must be linux/arm64 or multi-arch",
+        ]
+    elif p.arch == "aarch64":
+        lines += [
+            "- ARM64 — not all PyPI wheels available, prefer conda-forge",
+            "- Docker images must be linux/arm64 or multi-arch",
+        ]
+    else:
+        lines += [
+            "- Docker images should match system architecture",
+        ]
+
+    return "\n".join(lines) + "\n"
+
+
+def _template_section(name: str) -> str:
+    """Return the template-specific CLAUDE.md section, platform-aware."""
+    from arasul_tui.core.platform import get_platform
+
+    p = get_platform()
+    mount = p.storage.mount
+    cuda = p.gpu.cuda_version or "12.6"
+
+    if name == "python-gpu":
+        return f"""
 ## Stack
 - PyTorch (NVIDIA Jetson wheels) + numpy + scipy
-- CUDA 12.6 available at /usr/local/cuda-12.6/
+- CUDA {cuda} available at /usr/local/cuda-{cuda}/
 - GPU memory shared with system — ~5.5GB available for training
 
 ## PyTorch Notes
@@ -259,20 +335,25 @@ _TEMPLATE_SECTIONS: dict[str, str] = {
 - Use `torch.cuda.is_available()` to verify GPU access
 - Monitor GPU memory: `torch.cuda.mem_get_info()`
 - For large models, use `torch.cuda.amp` for mixed precision
-""",
-    "vision": """
+"""
+
+    if name == "vision":
+        return f"""
 ## Stack
 - PyTorch + torchvision + OpenCV + YOLO11 (ultralytics)
 - Docker Compose with `--runtime=nvidia` for GPU access
-- CUDA 12.6 available at /usr/local/cuda-12.6/
+- CUDA {cuda} available at /usr/local/cuda-{cuda}/
 
 ## Vision Notes
 - OpenCV headless build (no GUI) — use `cv2.imwrite()` to save results
 - YOLO11: `from ultralytics import YOLO; model = YOLO('yolo11n.pt')`
 - Camera: `/dev/video0` (USB) or CSI via GStreamer pipeline
 - For real-time: target 720p or lower for good FPS on 1024 CUDA cores
-""",
-    "api": """
+"""
+
+    if name == "api":
+        if p.gpu.has_cuda:
+            return """
 ## Stack
 - FastAPI + Uvicorn + PyTorch
 - Caddy reverse proxy with auto-HTTPS
@@ -284,22 +365,38 @@ _TEMPLATE_SECTIONS: dict[str, str] = {
 - Load model once at startup, not per-request
 - Uvicorn workers: 1 (shared GPU memory)
 - Caddy handles HTTPS termination
-""",
-    "notebook": """
+"""
+        return """
+## Stack
+- FastAPI + Uvicorn
+- Caddy reverse proxy with auto-HTTPS
+- Docker Compose
+
+## API Notes
+- Health endpoint: GET /health
+- Prediction endpoint: POST /predict
+- Load model once at startup, not per-request
+- Caddy handles HTTPS termination
+"""
+
+    if name == "notebook":
+        gpu_line = "\n- GPU available in notebooks via PyTorch (if installed)" if p.gpu.has_cuda else ""
+        return f"""
 ## Stack
 - JupyterLab + numpy + pandas + matplotlib + scikit-learn + seaborn
 
 ## Access
 - Start: `jupyter lab --no-browser --ip=0.0.0.0 --port=8888`
-- SSH tunnel from your machine: `ssh -L 8888:localhost:8888 jetson`
+- SSH tunnel from your machine: `ssh -L 8888:localhost:8888 mydevice`
 - Then open: http://localhost:8888
 
 ## Notes
-- ~180MB RAM for JupyterLab server
-- GPU available in notebooks via PyTorch (if installed)
-- Save large datasets to /mnt/nvme/, not project dir
-""",
-    "webapp": """
+- ~180MB RAM for JupyterLab server{gpu_line}
+- Save large datasets to {mount}/, not project dir
+"""
+
+    if name == "webapp":
+        return """
 ## Stack
 - **Frontend:** Next.js 15 (TypeScript) on port 3000
 - **Backend:** FastAPI + SQLAlchemy + asyncpg on port 8000
@@ -320,17 +417,15 @@ _TEMPLATE_SECTIONS: dict[str, str] = {
 - `.env` has auto-generated secrets — do NOT commit
 - `DATABASE_URL` connects backend to PostgreSQL
 - `SECRET_KEY` for session/JWT signing
-""",
-}
+"""
+
+    return ""
 
 
 def generate_claude_md(project_name: str, template: TemplateConfig) -> str:
     """Generate a project-specific CLAUDE.md."""
-    content = _CLAUDE_MD_HEADER.format(
-        project_name=project_name,
-        python_version=template.python_version,
-    )
-    section = _TEMPLATE_SECTIONS.get(template.name, "")
+    content = _generate_header(project_name, template.python_version)
+    section = _template_section(template.name)
     if section:
         content += section
     return content

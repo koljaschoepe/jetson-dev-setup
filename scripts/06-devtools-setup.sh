@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 06 — Development Tools
-# Node.js (nvm), Python venv, Git, Claude Code, jtop
+# 06 — Development Tools (Multi-Platform)
+# Node.js (nvm), Python venv, Git, Claude Code, jtop (Jetson only)
 # =============================================================================
 set -euo pipefail
 
@@ -9,6 +9,12 @@ NVM_DIR="${REAL_HOME}/.nvm"
 
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
+
+# shellcheck source=../lib/detect.sh
+source "$(dirname "$0")/../lib/detect.sh"
+
+PLATFORM="${PLATFORM:-$(detect_platform)}"
+STORAGE_MOUNT="${STORAGE_MOUNT:-$(detect_storage_mount)}"
 
 # ---------------------------------------------------------------------------
 # Build essentials (for native npm/pip packages)
@@ -49,7 +55,7 @@ run_as_user "git config --global core.editor nano"
 GH_KEY="${REAL_HOME}/.ssh/github_ed25519"
 if [[ ! -f "$GH_KEY" ]]; then
     run_as_user "mkdir -p ${REAL_HOME}/.ssh && chmod 700 ${REAL_HOME}/.ssh"
-    run_as_user "ssh-keygen -t ed25519 -C '${JETSON_HOSTNAME}-${CUSTOMER_NAME}' -f ${GH_KEY} -N ''"
+    run_as_user "ssh-keygen -t ed25519 -C '${DEVICE_HOSTNAME}-${CUSTOMER_NAME}' -f ${GH_KEY} -N ''"
     log "GitHub SSH key generated: ${GH_KEY}"
     echo ""
     echo "  ┌──────────────────────────────────────────────────┐"
@@ -131,17 +137,17 @@ if [[ "${INSTALL_OLLAMA}" == "true" ]]; then
     if ! command -v ollama &>/dev/null; then
         log "Installing Ollama..."
         curl -fsSL https://ollama.com/install.sh | sh
-        # Model directory on NVMe
-        if [[ -d "${NVME_MOUNT}/models" ]]; then
+        # Model directory on external storage
+        if [[ -d "${STORAGE_MOUNT}/models" ]]; then
             mkdir -p /etc/systemd/system/ollama.service.d
             cat > /etc/systemd/system/ollama.service.d/override.conf << EOF
 [Service]
-Environment="OLLAMA_MODELS=${NVME_MOUNT}/models/ollama"
+Environment="OLLAMA_MODELS=${STORAGE_MOUNT}/models/ollama"
 EOF
             systemctl daemon-reload
             systemctl restart ollama
         fi
-        log "Ollama installed (models: ${NVME_MOUNT}/models/ollama)"
+        log "Ollama installed (models: ${STORAGE_MOUNT}/models/ollama)"
     else
         skip "Ollama already installed"
     fi
@@ -150,14 +156,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# jtop (Jetson system monitor)
+# jtop (Jetson system monitor — Jetson only)
 # ---------------------------------------------------------------------------
-if ! command -v jtop &>/dev/null; then
-    pip3 install --break-system-packages -U jetson-stats 2>/dev/null || \
-        pip3 install -U jetson-stats 2>/dev/null || true
-    log "jtop installed"
-else
-    skip "jtop already installed"
+if [[ "$PLATFORM" == "jetson" ]]; then
+    if ! command -v jtop &>/dev/null; then
+        pip3 install --break-system-packages -U jetson-stats 2>/dev/null || \
+            pip3 install -U jetson-stats 2>/dev/null || true
+        log "jtop installed"
+    else
+        skip "jtop already installed"
+    fi
 fi
 
 log "Development tools setup complete"

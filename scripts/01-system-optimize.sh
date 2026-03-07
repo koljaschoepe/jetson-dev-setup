@@ -9,6 +9,11 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
 
+# shellcheck source=../lib/detect.sh
+source "$(dirname "$0")/../lib/detect.sh"
+
+PLATFORM="${PLATFORM:-$(detect_platform)}"
+
 # ---------------------------------------------------------------------------
 # Disable desktop environment
 # ---------------------------------------------------------------------------
@@ -27,7 +32,6 @@ fi
 # Disable unnecessary services
 # ---------------------------------------------------------------------------
 DISABLE_SERVICES=(
-    "nvargus-daemon.service"
     "bluetooth.service"
     "cups.service"
     "cups-browsed.service"
@@ -37,6 +41,11 @@ DISABLE_SERVICES=(
     "whoopsie.service"
     "apport.service"
 )
+
+# Jetson-only: camera daemon
+if [[ "$PLATFORM" == "jetson" ]]; then
+    DISABLE_SERVICES+=("nvargus-daemon.service")
+fi
 
 for svc in "${DISABLE_SERVICES[@]}"; do
     if systemctl is-enabled "$svc" &>/dev/null 2>&1; then
@@ -76,29 +85,34 @@ fi
 log "Updating package lists..."
 apt-get update -qq
 
+BASE_PACKAGES=(
+    curl wget htop tree jq unzip net-tools
+    smartmontools lsof ca-certificates gnupg
+)
+
+# Only install nvme-cli if NVMe storage detected
+if has_nvme 2>/dev/null; then
+    BASE_PACKAGES+=(nvme-cli)
+fi
+
 log "Installing base packages..."
-apt-get install -y -qq \
-    curl \
-    wget \
-    htop \
-    tree \
-    jq \
-    unzip \
-    net-tools \
-    nvme-cli \
-    smartmontools \
-    lsof \
-    ca-certificates \
-    gnupg \
-    2>/dev/null
+apt-get install -y -qq "${BASE_PACKAGES[@]}" 2>/dev/null
 
 # ---------------------------------------------------------------------------
 # Kernel parameter tuning
 # ---------------------------------------------------------------------------
-SYSCTL_FILE="/etc/sysctl.d/99-jetson-dev.conf"
+SYSCTL_FILE="/etc/sysctl.d/99-arasul-system.conf"
+OLD_SYSCTL_FILE="/etc/sysctl.d/99-jetson-dev.conf"
+
+# Backward compat: accept old name as already-done
+if [[ -f "$OLD_SYSCTL_FILE" ]] && [[ ! -f "$SYSCTL_FILE" ]]; then
+    mv "$OLD_SYSCTL_FILE" "$SYSCTL_FILE"
+    log "Renamed ${OLD_SYSCTL_FILE} → ${SYSCTL_FILE}"
+fi
+
 if [[ ! -f "$SYSCTL_FILE" ]]; then
     cat > "$SYSCTL_FILE" << 'EOF'
-# Jetson Dev Server — Kernel Tuning
+# Arasul Dev Server — Kernel Tuning
 vm.swappiness=10
 vm.vfs_cache_pressure=50
 vm.dirty_ratio=10
@@ -133,7 +147,14 @@ fi
 # ---------------------------------------------------------------------------
 # File descriptor limits
 # ---------------------------------------------------------------------------
-LIMITS_FILE="/etc/security/limits.d/99-jetson-dev.conf"
+LIMITS_FILE="/etc/security/limits.d/99-arasul-limits.conf"
+OLD_LIMITS_FILE="/etc/security/limits.d/99-jetson-dev.conf"
+
+if [[ -f "$OLD_LIMITS_FILE" ]] && [[ ! -f "$LIMITS_FILE" ]]; then
+    mv "$OLD_LIMITS_FILE" "$LIMITS_FILE"
+    log "Renamed ${OLD_LIMITS_FILE} → ${LIMITS_FILE}"
+fi
+
 if [[ ! -f "$LIMITS_FILE" ]]; then
     cat > "$LIMITS_FILE" << EOF
 ${REAL_USER}    soft    nofile    65536
@@ -150,7 +171,14 @@ fi
 # Journald size and retention limits
 # ---------------------------------------------------------------------------
 JOURNALD_DIR="/etc/systemd/journald.conf.d"
-JOURNALD_CONF="${JOURNALD_DIR}/99-jetson.conf"
+JOURNALD_CONF="${JOURNALD_DIR}/99-arasul.conf"
+OLD_JOURNALD_CONF="${JOURNALD_DIR}/99-jetson.conf"
+
+if [[ -f "$OLD_JOURNALD_CONF" ]] && [[ ! -f "$JOURNALD_CONF" ]]; then
+    mv "$OLD_JOURNALD_CONF" "$JOURNALD_CONF"
+    log "Renamed ${OLD_JOURNALD_CONF} → ${JOURNALD_CONF}"
+fi
+
 if [[ ! -f "$JOURNALD_CONF" ]]; then
     mkdir -p "$JOURNALD_DIR"
     cat > "$JOURNALD_CONF" << 'EOF'

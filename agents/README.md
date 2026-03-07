@@ -1,11 +1,11 @@
-# Claude Code Agents for Jetson Development
+# Claude Code Agents for Arasul Development
 
-Useful Claude Code patterns and workflows for working on the Jetson Orin Nano Super.
+Useful Claude Code patterns and workflows for working on Arasul-managed devices (Jetson, Raspberry Pi, or generic Linux SBCs).
 
 ## Quick Start
 
 ```bash
-ssh jetson
+ssh mydevice
 t                    # tmux session
 cd ~/projects/my-app
 claude               # Start Claude Code
@@ -15,17 +15,17 @@ claude               # Start Claude Code
 
 ### System Health Check
 ```
-claude -p "Check this Jetson: disk space, RAM, GPU temperature, Docker status, NVMe health. Summarize any issues."
+claude -p "Check this device: disk space, RAM, temperature, Docker status. Summarize any issues."
 ```
 
 ### Bootstrap New Project
 ```
-claude -p "Create a Python project in ~/projects/PROJECTNAME with: pyproject.toml, src/ layout, Dockerfile optimized for Jetson ARM64 with NVIDIA Runtime, docker-compose.yml, .gitignore and README. Python 3.10."
+claude -p "Create a Python project in ~/projects/PROJECTNAME with: pyproject.toml, src/ layout, Dockerfile optimized for ARM64, docker-compose.yml, .gitignore and README. Python 3.10."
 ```
 
-### Docker Compose for Jetson
+### Docker Compose
 ```
-claude -p "Create a docker-compose.yml for DESCRIPTION. Requirements: linux/arm64 images, NVIDIA Runtime, max 2GB RAM per container, /mnt/nvme/docker for volumes, health checks."
+claude -p "Create a docker-compose.yml for DESCRIPTION. Requirements: multi-arch images, max 2GB RAM per container, health checks."
 ```
 
 ## Agent Patterns
@@ -51,17 +51,25 @@ cd ~/projects/project-b && claude   # Window 2
 
 ### 3. System Administration
 ```
-claude -p "Sysadmin for Jetson Orin Nano Super (8GB RAM, NVMe at /mnt/nvme). Check and optimize: disk usage, Docker cleanup, log rotation, swap, RAM-intensive services."
+claude -p "Sysadmin for this device. Check and optimize: disk usage, Docker cleanup, log rotation, swap, RAM-intensive services."
 ```
 
-## ARM64 Notes for Claude Code
+## Platform Notes for Claude Code
 
-- **Docker images must be ARM64**: Always specify `platform: linux/arm64`
-- **PyTorch needs NVIDIA wheels**: `pip install torch` doesn't work directly
-- **8GB shared RAM**: Max 2-3 Docker containers simultaneously
-- **NVMe is primary storage**: Projects under `/mnt/nvme/projects/`
+### All Platforms
+- **Docker images must match architecture**: ARM64 SBCs need `linux/arm64` images
 - **No GUI**: Everything is terminal-based
+- Projects under `<storage-mount>/projects/`
+
+### Jetson-Specific
+- **8GB shared RAM**: Max 2-3 Docker containers simultaneously
 - **CUDA 12.6**: GPU in Docker with `--runtime=nvidia`
+- **PyTorch needs NVIDIA wheels**: `pip install torch` doesn't work directly
+
+### Raspberry Pi
+- **No CUDA**: GPU features unavailable
+- **Pi 4 (4GB)**: Tight RAM — avoid Playwright, limit Docker containers
+- **Pi 5 (8GB)**: Comfortable headroom for most workloads
 
 ## CLAUDE.md Template for Projects
 
@@ -72,9 +80,8 @@ claude -p "Sysadmin for Jetson Orin Nano Super (8GB RAM, NVMe at /mnt/nvme). Che
 Brief description.
 
 ## Architecture
-- Runtime: Docker on Jetson Orin Nano Super (ARM64, 8GB RAM)
-- Storage: /mnt/nvme/projects/this-project
-- GPU: CUDA 12.6 via NVIDIA Container Runtime
+- Runtime: Docker on <device> (ARM64)
+- Storage: <storage-mount>/projects/this-project
 
 ## Commands
 - Build: `docker compose build`

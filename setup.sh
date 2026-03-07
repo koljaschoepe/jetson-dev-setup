@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Jetson Orin Nano Super — Automated Headless Dev Server Setup
+# Arasul — Automated Headless Dev Server Setup
 # =============================================================================
-# Usage: sudo ./setup.sh [--skip-reboot] [--step N] [--interactive]
+# Usage: sudo ./setup.sh [--auto] [--skip-reboot] [--step N] [--interactive]
+#
+# Supports: Jetson (all), Raspberry Pi (4/5), generic Linux (aarch64/x86_64)
 #
 # Prerequisites:
-#   1. JetPack 6.2.2 flashed (SD card or NVMe via SDK Manager)
-#   2. oem-config completed (first-boot wizard)
+#   1. Fresh Linux install (JetPack, Raspberry Pi OS, Ubuntu, etc.)
+#   2. First-boot setup completed (user account created)
 #   3. SSH access to the device
 #   4. .env file configured (cp .env.example .env && nano .env)
 # =============================================================================
@@ -17,9 +19,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="/var/log/jetson-setup"
 SKIP_REBOOT=false
 SINGLE_STEP=""
+AUTO=false
 
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
+
+# shellcheck source=lib/detect.sh
+source "${SCRIPT_DIR}/lib/detect.sh"
 
 # ---------------------------------------------------------------------------
 # Load configuration
@@ -42,9 +48,15 @@ load_config() {
     # shellcheck source=/dev/null
     source "$env_file"
 
+    # Backward compatibility: map old variable names to new ones
+    DEVICE_USER="${DEVICE_USER:-${JETSON_USER:-}}"
+    DEVICE_HOSTNAME="${DEVICE_HOSTNAME:-${JETSON_HOSTNAME:-}}"
+    STORAGE_DEVICE="${STORAGE_DEVICE:-${NVME_DEVICE:-}}"
+    STORAGE_MOUNT="${STORAGE_MOUNT:-${NVME_MOUNT:-}}"
+
     # Validate required fields
     local missing=false
-    for var in CUSTOMER_NAME JETSON_USER JETSON_HOSTNAME; do
+    for var in CUSTOMER_NAME DEVICE_USER DEVICE_HOSTNAME; do
         if [[ "${!var:-}" == "CHANGEME" ]] || [[ -z "${!var:-}" ]]; then
             err "Variable $var is not configured in .env"
             missing=true
@@ -56,9 +68,16 @@ load_config() {
         exit 1
     fi
 
+    # Auto-detect storage if not explicitly configured
+    if [[ -z "$STORAGE_DEVICE" ]]; then
+        STORAGE_DEVICE=$(detect_storage_device)
+    fi
+    if [[ -z "$STORAGE_MOUNT" ]]; then
+        STORAGE_MOUNT=$(detect_storage_mount)
+    fi
+    STORAGE_TYPE=$(detect_storage_type)
+
     # Set defaults
-    NVME_DEVICE="${NVME_DEVICE:-/dev/nvme0n1}"
-    NVME_MOUNT="${NVME_MOUNT:-/mnt/nvme}"
     SWAP_SIZE="${SWAP_SIZE:-32G}"
     INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-false}"
     NODE_VERSION="${NODE_VERSION:-22}"
@@ -73,8 +92,12 @@ load_config() {
     GIT_USER_EMAIL="${GIT_USER_EMAIL:-}"
 
     # Derived variables
-    REAL_USER="$JETSON_USER"
+    REAL_USER="$DEVICE_USER"
     REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+
+    # Legacy variable names (kept for user .env backward compat only)
+    JETSON_USER="$DEVICE_USER"
+    JETSON_HOSTNAME="$DEVICE_HOSTNAME"
 }
 
 # ---------------------------------------------------------------------------
@@ -83,16 +106,16 @@ load_config() {
 interactive_config() {
     echo ""
     echo -e "${CYAN}╔═══════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  Jetson Dev Setup — Interactive Configuration      ║${NC}"
+    echo -e "${CYAN}║  Arasul — Interactive Configuration               ║${NC}"
     echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
 
     local env_file="${SCRIPT_DIR}/.env"
 
     read -rp "Customer / Project name: " i_customer
-    read -rp "Jetson username: " i_user
-    read -rp "Hostname [jetson]: " i_hostname
-    i_hostname="${i_hostname:-jetson}"
+    read -rp "Device username: " i_user
+    read -rp "Hostname [dev]: " i_hostname
+    i_hostname="${i_hostname:-dev}"
     read -rp "Swap size [32G]: " i_swap
     i_swap="${i_swap:-32G}"
     read -rp "Install Tailscale? (true/false) [false]: " i_tailscale
@@ -116,8 +139,8 @@ interactive_config() {
     _sanitise() { printf '%s' "$1" | tr -d '|"\\`$\n'; }
 
     sed -i "s|CUSTOMER_NAME=\"CHANGEME\"|CUSTOMER_NAME=\"$(_sanitise "$i_customer")\"|" "$env_file"
-    sed -i "s|JETSON_USER=\"CHANGEME\"|JETSON_USER=\"$(_sanitise "$i_user")\"|" "$env_file"
-    sed -i "s|JETSON_HOSTNAME=\"jetson\"|JETSON_HOSTNAME=\"$(_sanitise "$i_hostname")\"|" "$env_file"
+    sed -i "s|DEVICE_USER=\"CHANGEME\"|DEVICE_USER=\"$(_sanitise "$i_user")\"|" "$env_file"
+    sed -i "s|DEVICE_HOSTNAME=\"dev\"|DEVICE_HOSTNAME=\"$(_sanitise "$i_hostname")\"|" "$env_file"
     sed -i "s|SWAP_SIZE=\"32G\"|SWAP_SIZE=\"$(_sanitise "$i_swap")\"|" "$env_file"
     sed -i "s|INSTALL_TAILSCALE=\"false\"|INSTALL_TAILSCALE=\"$(_sanitise "$i_tailscale")\"|" "$env_file"
     sed -i "s|GIT_USER_NAME=\"CHANGEME\"|GIT_USER_NAME=\"$(_sanitise "$i_git_name")\"|" "$env_file"
@@ -132,23 +155,33 @@ interactive_config() {
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
-check_jetson() {
-    if [[ -f /etc/nv_tegra_release ]]; then
-        local l4t_version
-        l4t_version=$(head -1 /etc/nv_tegra_release | sed 's/.*R\([0-9]*\).*/\1/')
-        log "Jetson detected (L4T R${l4t_version})"
-    elif [[ -d /proc/device-tree ]] && grep -q "nvidia" /proc/device-tree/compatible 2>/dev/null; then
-        log "Jetson platform detected"
-    else
-        err "This does not appear to be a Jetson device"
-        exit 1
-    fi
+check_platform() {
+    PLATFORM="${PLATFORM:-$(detect_platform)}"
+    DEVICE_MODEL=$(detect_model)
+
+    case "$PLATFORM" in
+        jetson)
+            if [[ -f /etc/nv_tegra_release ]]; then
+                local l4t_version
+                l4t_version=$(head -1 /etc/nv_tegra_release | sed 's/.*R\([0-9]*\).*/\1/')
+                log "Jetson detected: ${DEVICE_MODEL} (L4T R${l4t_version})"
+            else
+                log "Jetson detected: ${DEVICE_MODEL}"
+            fi
+            ;;
+        raspberry_pi)
+            log "Raspberry Pi detected: ${DEVICE_MODEL}"
+            ;;
+        generic)
+            log "Generic Linux detected: ${DEVICE_MODEL}"
+            ;;
+    esac
 }
 
 check_user_exists() {
     if ! id "$REAL_USER" &>/dev/null; then
         err "User '${REAL_USER}' does not exist on this system"
-        err "Please fix JETSON_USER in .env"
+        err "Please fix DEVICE_USER in .env"
         exit 1
     fi
 }
@@ -172,23 +205,28 @@ parse_args() {
             --skip-reboot)   SKIP_REBOOT=true; shift ;;
             --step)          SINGLE_STEP="${2:-}"; shift 2 ;;
             --interactive)   INTERACTIVE=true; shift ;;
+            --auto)          AUTO=true; shift ;;
             -h|--help)
                 echo "Usage: sudo ./setup.sh [OPTIONS]"
                 echo ""
                 echo "Options:"
-                echo "  --interactive    Interactive mode (generates .env)"
+                echo "  --interactive    Interactive mode (generates .env + step selection)"
+                echo "  --auto           Run all applicable steps without wizard"
                 echo "  --skip-reboot    No reboot after setup"
-                echo "  --step N         Run only step N (1-8)"
+                echo "  --step N         Run only step N (1-9)"
                 echo "  -h, --help       Show this help"
                 echo ""
+                echo "Default behavior shows a step selection wizard."
+                echo "Use --auto for unattended / scripted installs."
+                echo ""
                 echo "Steps:"
-                echo "  1  System optimization (disable GUI, services)"
+                echo "  1  System optimization (disable desktop, tune kernel)"
                 echo "  2  Network (hostname, mDNS, firewall)"
-                echo "  3  SSH hardening (key-only, fail2ban)"
-                echo "  4  NVMe setup (partition, mount, swap)"
-                echo "  5  Docker configuration (NVIDIA Runtime)"
+                echo "  3  SSH hardening (key-only auth, fail2ban)"
+                echo "  4  Storage setup (NVMe/SSD, swap)"
+                echo "  5  Docker + Compose"
                 echo "  6  Dev tools (Node.js, Python, Claude Code)"
-                echo "  7  Quality of life (tmux, aliases, jtop)"
+                echo "  7  Quality of life (tmux, aliases, prompt)"
                 echo "  8  Headless browser (Playwright + Chromium)"
                 echo "  9  n8n workflow automation (Docker stack)"
                 exit 0
@@ -213,11 +251,13 @@ run_script() {
 
     step "Step ${num}: ${name}"
 
-    # Export all config variables for subscripts
-    export REAL_USER REAL_HOME NVME_DEVICE NVME_MOUNT SWAP_SIZE
+    # Export config variables for subscripts
+    export REAL_USER REAL_HOME SWAP_SIZE PLATFORM DEVICE_MODEL
+    export STORAGE_DEVICE STORAGE_MOUNT STORAGE_TYPE
+    export DEVICE_USER DEVICE_HOSTNAME CUSTOMER_NAME
     export INSTALL_TAILSCALE INSTALL_CLAUDE INSTALL_OLLAMA
     export INSTALL_ARASUL_TUI INSTALL_N8N
-    export NODE_VERSION POWER_MODE JETSON_HOSTNAME CUSTOMER_NAME
+    export NODE_VERSION POWER_MODE
     export GIT_USER_NAME GIT_USER_EMAIL
     export DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILES
     export STATIC_IP STATIC_GATEWAY
@@ -238,6 +278,259 @@ run_script() {
 }
 
 # ---------------------------------------------------------------------------
+# Step selection wizard
+# ---------------------------------------------------------------------------
+
+# Step descriptions (index 0-8 for steps 1-9)
+STEP_NAMES=(
+    "System optimization (disable desktop, tune kernel)"
+    "Network (hostname, mDNS, firewall)"
+    "SSH hardening (key-only auth, fail2ban)"
+    "Storage setup (NVMe/SSD, swap)"
+    "Docker + Compose"
+    "Dev tools (Node.js, Python, Git, Claude Code)"
+    "Quality of life (tmux, aliases, prompt)"
+    "Headless browser (Playwright + Chromium)"
+    "n8n workflow automation"
+)
+
+# Selected steps (1=selected, 0=not) — index 0-8 for steps 1-9
+declare -a SELECTED_STEPS
+
+# Compute platform-aware default selections
+compute_step_defaults() {
+    SELECTED_STEPS=(1 1 1 1 1 1 1 1 0)
+
+    # Storage: off if no external storage detected
+    if [[ -z "$STORAGE_DEVICE" ]]; then
+        SELECTED_STEPS[3]=0
+    fi
+
+    # Browser: off on RPi with <=4GB RAM
+    if [[ "$PLATFORM" == "raspberry_pi" ]]; then
+        local ram_mb
+        ram_mb=$(detect_ram_mb 2>/dev/null || echo 0)
+        if (( ram_mb > 0 && ram_mb <= 4096 )); then
+            SELECTED_STEPS[7]=0
+        fi
+    fi
+
+    # Generic: storage off if no external drive
+    if [[ "$PLATFORM" == "generic" ]] && [[ -z "$STORAGE_DEVICE" ]]; then
+        SELECTED_STEPS[3]=0
+    fi
+
+    # n8n: follow .env config
+    if [[ "${INSTALL_N8N}" == "true" ]]; then
+        SELECTED_STEPS[8]=1
+    fi
+}
+
+# Load previous selections from state file
+load_setup_state() {
+    local state_file="${REAL_HOME}/.arasul/setup-state.json"
+    [[ -f "$state_file" ]] || return 0
+    command -v python3 &>/dev/null || return 0
+
+    local saved
+    saved=$(python3 << PYEOF
+import json
+try:
+    with open("${state_file}") as f:
+        data = json.load(f)
+    steps = data.get("steps", {})
+    for i in range(1, 10):
+        v = steps.get(str(i))
+        if v is not None:
+            print(f"{i - 1}={'1' if v else '0'}")
+except Exception:
+    pass
+PYEOF
+    ) || return 0
+
+    while IFS='=' read -r idx val; do
+        if [[ -n "$idx" ]] && [[ -n "$val" ]]; then
+            SELECTED_STEPS[idx]=$val
+        fi
+    done <<< "$saved"
+
+    log "Loaded previous selections from ${state_file}"
+}
+
+# Save current selections to state file
+save_setup_state() {
+    command -v python3 &>/dev/null || return 0
+
+    local state_dir="${REAL_HOME}/.arasul"
+    mkdir -p "$state_dir"
+    chown "$REAL_USER:$REAL_USER" "$state_dir" 2>/dev/null || true
+
+    local state_file="${state_dir}/setup-state.json"
+
+    python3 << PYEOF
+import json
+from datetime import datetime
+data = {
+    "version": 1,
+    "timestamp": datetime.now().isoformat(),
+    "platform": "${PLATFORM}",
+    "steps": {
+        "1": $([ "${SELECTED_STEPS[0]}" = "1" ] && echo "True" || echo "False"),
+        "2": $([ "${SELECTED_STEPS[1]}" = "1" ] && echo "True" || echo "False"),
+        "3": $([ "${SELECTED_STEPS[2]}" = "1" ] && echo "True" || echo "False"),
+        "4": $([ "${SELECTED_STEPS[3]}" = "1" ] && echo "True" || echo "False"),
+        "5": $([ "${SELECTED_STEPS[4]}" = "1" ] && echo "True" || echo "False"),
+        "6": $([ "${SELECTED_STEPS[5]}" = "1" ] && echo "True" || echo "False"),
+        "7": $([ "${SELECTED_STEPS[6]}" = "1" ] && echo "True" || echo "False"),
+        "8": $([ "${SELECTED_STEPS[7]}" = "1" ] && echo "True" || echo "False"),
+        "9": $([ "${SELECTED_STEPS[8]}" = "1" ] && echo "True" || echo "False")
+    }
+}
+with open("${state_file}", "w") as f:
+    json.dump(data, f, indent=2)
+PYEOF
+
+    chown "$REAL_USER:$REAL_USER" "$state_file" 2>/dev/null || true
+}
+
+# Step selection via whiptail or dialog
+select_steps_tui() {
+    local tool="$1"
+    local args=()
+
+    for i in $(seq 0 8); do
+        local tag=$((i + 1))
+        local status
+        [[ "${SELECTED_STEPS[$i]}" == "1" ]] && status="ON" || status="OFF"
+        args+=("$tag" "${STEP_NAMES[$i]}" "$status")
+    done
+
+    local choices
+    choices=$("$tool" --title "  Arasul — Step Selection  " \
+        --checklist "Select setup steps (Space to toggle, Enter to confirm):" \
+        20 72 9 \
+        "${args[@]}" \
+        3>&1 1>&2 2>&3)
+
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        warn "Setup cancelled."
+        exit 0
+    fi
+
+    # Reset all to 0, then enable selected
+    SELECTED_STEPS=(0 0 0 0 0 0 0 0 0)
+    # shellcheck disable=SC2086
+    for s in $choices; do
+        local num="${s//\"/}"
+        SELECTED_STEPS[num - 1]=1
+    done
+}
+
+# Text-based fallback when whiptail/dialog unavailable
+select_steps_text() {
+    echo ""
+    echo -e "${CYAN}  Select setup steps:${NC}"
+    echo ""
+
+    while true; do
+        for i in $(seq 0 8); do
+            local tag=$((i + 1))
+            local mark
+            [[ "${SELECTED_STEPS[$i]}" == "1" ]] && mark="x" || mark=" "
+            printf "  [%s] %d. %s\n" "$mark" "$tag" "${STEP_NAMES[$i]}"
+        done
+        echo ""
+        read -rp "  Toggle (1-9), 'a' all, 'n' none, Enter to start: " choice
+
+        case "$choice" in
+            [1-9])
+                local idx=$((choice - 1))
+                [[ "${SELECTED_STEPS[idx]}" == "1" ]] && SELECTED_STEPS[idx]=0 || SELECTED_STEPS[idx]=1
+                # Move cursor up to redraw (9 lines + 1 blank + 1 prompt = 11)
+                printf '\033[11A\033[0J'
+                ;;
+            a|A)
+                SELECTED_STEPS=(1 1 1 1 1 1 1 1 1)
+                printf '\033[11A\033[0J'
+                ;;
+            n|N)
+                SELECTED_STEPS=(0 0 0 0 0 0 0 0 0)
+                printf '\033[11A\033[0J'
+                ;;
+            "")
+                break
+                ;;
+            *)
+                # Invalid input — clear prompt line only
+                printf '\033[1A\033[0K'
+                ;;
+        esac
+    done
+}
+
+# Main wizard: show hardware summary, select steps
+select_steps() {
+    print_hardware_summary
+
+    compute_step_defaults
+    load_setup_state
+
+    if command -v whiptail &>/dev/null; then
+        select_steps_tui "whiptail"
+    elif command -v dialog &>/dev/null; then
+        select_steps_tui "dialog"
+    else
+        select_steps_text
+    fi
+
+    save_setup_state
+}
+
+# Run a step with storage-type awareness
+run_step() {
+    local step="$1"
+
+    case "$step" in
+        1) run_script "01" "system-optimize" ;;
+        2) run_script "02" "network-setup" ;;
+        3) run_script "03" "ssh-harden" ;;
+        4) run_script "04" "storage-setup" ;;
+        5) run_script "05" "docker-setup" ;;
+        6) run_script "06" "devtools-setup" ;;
+        7) run_script "07" "quality-of-life" ;;
+        8) run_script "08" "browser-setup" ;;
+        9) run_script "09" "n8n-setup" ;;
+    esac
+}
+
+# Run only the steps selected in SELECTED_STEPS[]
+run_selected_steps() {
+    for i in $(seq 0 8); do
+        [[ "${SELECTED_STEPS[$i]}" == "0" ]] && continue
+        run_step $((i + 1))
+    done
+}
+
+# Run all applicable steps (--auto mode, old default behavior)
+run_all_steps() {
+    run_step 1
+    run_step 2
+    run_step 3
+    run_step 4
+    run_step 5
+    run_step 6
+    run_step 7
+    run_step 8
+
+    if [[ "${INSTALL_N8N}" == "true" ]]; then
+        run_step 9
+    else
+        log "n8n skipped (INSTALL_N8N=false)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 parse_args "$@"
@@ -248,58 +541,44 @@ if [[ "$INTERACTIVE" == true ]]; then
 fi
 
 load_config
-check_jetson
+check_platform
 check_user_exists
 setup_logging
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║  Jetson Orin Nano Super — Headless Dev Server Setup          ║"
+echo "║  Arasul — Headless Dev Server Setup                          ║"
 echo "╠═══════════════════════════════════════════════════════════════╣"
+echo "║  Platform: ${PLATFORM} (${DEVICE_MODEL})"
 echo "║  Customer: ${CUSTOMER_NAME}"
 echo "║  User:     ${REAL_USER}"
 echo "║  Home:     ${REAL_HOME}"
-echo "║  Hostname: ${JETSON_HOSTNAME}"
-echo "║  NVMe:     ${NVME_DEVICE} → ${NVME_MOUNT}"
+echo "║  Hostname: ${DEVICE_HOSTNAME}"
+if [[ -n "$STORAGE_DEVICE" ]]; then
+echo "║  Storage:  ${STORAGE_DEVICE} → ${STORAGE_MOUNT}"
+else
+echo "║  Storage:  ${STORAGE_MOUNT} (no external device)"
+fi
 echo "║  Swap:     ${SWAP_SIZE}"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
 
 if [[ -n "$SINGLE_STEP" ]]; then
     case "$SINGLE_STEP" in
-        1) run_script "01" "system-optimize" ;;
-        2) run_script "02" "network-setup" ;;
-        3) run_script "03" "ssh-harden" ;;
-        4) run_script "04" "nvme-setup" ;;
-        5) run_script "05" "docker-setup" ;;
-        6) run_script "06" "devtools-setup" ;;
-        7) run_script "07" "quality-of-life" ;;
-        8) run_script "08" "browser-setup" ;;
-        9) run_script "09" "n8n-setup" ;;
+        [1-9]) run_step "$SINGLE_STEP" ;;
         *) err "Invalid step: $SINGLE_STEP (must be 1-9)"; exit 1 ;;
     esac
+elif [[ "$AUTO" == true ]]; then
+    run_all_steps
 else
-    run_script "01" "system-optimize"
-    run_script "02" "network-setup"
-    run_script "03" "ssh-harden"
-
-    if lsblk "$NVME_DEVICE" &>/dev/null 2>&1; then
-        run_script "04" "nvme-setup"
+    # Interactive wizard: select steps, then run
+    if [[ -t 0 ]]; then
+        select_steps
+        run_selected_steps
     else
-        warn "No NVMe device found at ${NVME_DEVICE} — skipping NVMe setup"
-        warn "Run later: sudo ./setup.sh --step 4"
-        warn "Scripts 5-8 will use fallback paths without NVMe"
-    fi
-
-    run_script "05" "docker-setup"
-    run_script "06" "devtools-setup"
-    run_script "07" "quality-of-life"
-    run_script "08" "browser-setup"
-
-    if [[ "${INSTALL_N8N}" == "true" ]]; then
-        run_script "09" "n8n-setup"
-    else
-        log "n8n skipped (INSTALL_N8N=false)"
+        # Non-interactive terminal (piped) — fall back to auto
+        warn "Non-interactive terminal detected — running all steps"
+        run_all_steps
     fi
 fi
 
@@ -308,9 +587,9 @@ echo "╔═══════════════════════�
 echo "║  Setup complete!                                             ║"
 echo "╠═══════════════════════════════════════════════════════════════╣"
 echo "║  Next steps:                                                 ║"
-echo "║  1. Set up Mac SSH config (see config/mac-ssh-config)       ║"
+echo "║  1. Set up SSH config (see config/mac-ssh-config)            ║"
 echo "║  2. Reboot: sudo reboot                                     ║"
-echo "║  3. Connect: ssh ${JETSON_HOSTNAME}"
+echo "║  3. Connect: ssh ${DEVICE_HOSTNAME}"
 echo "║  4. Work: t → claude                                        ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 

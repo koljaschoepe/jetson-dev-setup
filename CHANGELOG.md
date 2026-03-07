@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-07
+
+### Added
+
+- **Multi-platform support**: Arasul now runs on NVIDIA Jetson, Raspberry Pi 4/5, and generic Linux (aarch64/x86_64)
+- **Hardware detection layer**: `lib/detect.sh` (shell) and `core/platform.py` (Python) auto-detect platform, storage, GPU, RAM
+- **Storage auto-detection**: Best storage used automatically (NVMe > USB-SSD > SD card)
+- **Interactive setup wizard**: `setup.sh` shows detected hardware and lets you select steps
+- **Platform-adaptive TUI dashboard**: Shows GPU % on Jetson, CPU temp on RPi, generic fallback
+- **Platform-specific aliases**: `config/aliases/common`, `config/aliases/jetson`, `config/aliases/raspberry_pi`
+- **Platform-aware MOTD**: Login banner shows detected hardware
+- **Platform-aware project templates**: GPU templates (`python-gpu`, `vision`) restricted to Jetson; `api`, `notebook`, `webapp` work everywhere
+- **Shell tests**: `tests/test_detect_sh.py` for `lib/detect.sh` functions
+- **Integration tests**: `tests/test_tui_integration.py` verifies TUI on non-Jetson platforms
+
+### Changed
+
+- **Repo renamed**: `jetson-dev-setup` → `arasul`
+- **Config variables renamed**: `JETSON_USER` → `DEVICE_USER`, `NVME_MOUNT` → `STORAGE_MOUNT` (old names still work)
+- **Script renamed**: `04-nvme-setup.sh` → `04-storage-setup.sh` (supports NVMe, USB-SSD, SD)
+- **Config files renamed**: `99-jetson-*` → `99-arasul-*`
+- **Prompt renamed**: `__jetson_ps1` → `__arasul_ps1`
+- **All hardcoded `/mnt/nvme` paths** replaced with `platform.storage.mount`
+- **Docker setup**: NVIDIA runtime only installed on Jetson
+- **setup.sh**: Accepts all platforms (no longer exits on non-Jetson)
+- **CI**: shellcheck covers `lib/detect.sh`, coverage threshold at 56%
+- 362 tests, 58% coverage
+
+### Backward Compatibility
+
+- Old `.env` files with `JETSON_*` / `NVME_*` variables continue to work (auto-mapped)
+- Existing Jetson workflows completely unchanged
+- All 22 TUI commands work on all platforms (GPU commands gracefully degrade)
+
 ## [0.3.1] - 2026-03-07
 
 ### Changed

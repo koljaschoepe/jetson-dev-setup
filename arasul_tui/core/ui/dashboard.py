@@ -89,6 +89,10 @@ def get_default_interface() -> str:
 
 def _system_info() -> dict[str, str]:
     """Gather system info in parallel. Returns dict of named values."""
+    from arasul_tui.core.platform import get_platform
+
+    platform = get_platform()
+
     try:
         import psutil
 
@@ -99,18 +103,31 @@ def _system_info() -> dict[str, str]:
         ram = cached_cmd("free -m | awk '/^Mem:/{printf \"%dM / %dM\", $3, $2}'") or "n/a"
         ram_pct = 0
 
+    storage_path = shlex.quote(str(platform.storage.mount))
     cmds = {
-        "disk": ("df -h /mnt/nvme 2>/dev/null | awk 'NR==2{print $3\"/\"$2}'", 4),
-        "disk_pct": ("df /mnt/nvme 2>/dev/null | awk 'NR==2{print $5}' | tr -d '%'", 4),
+        "disk": (f"df -h {storage_path} 2>/dev/null | awk 'NR==2{{print $3\"/\"$2}}'", 4),
+        "disk_pct": (f"df {storage_path} 2>/dev/null | awk 'NR==2{{print $5}}' | tr -d '%'", 4),
         "temp": (
-            "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'",
+            "cat /sys/devices/virtual/thermal/thermal_zone0/temp 2>/dev/null"
+            " | awk '{printf \"%.0f\", $1/1000}'",
             4,
         ),
-        "power": ("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'", 4),
-        "gpu": ("cat /sys/devices/gpu.0/load 2>/dev/null", 4),
         "ip": ("hostname -I 2>/dev/null | awk '{print $1}'", 4),
         "docker": ("docker ps -q 2>/dev/null | wc -l | tr -d ' '", 5),
     }
+
+    # Platform-specific commands
+    if platform.is_jetson:
+        cmds["power"] = ("sudo nvpmodel -q 2>/dev/null | head -1 | sed 's/NV Power Mode: //'", 4)
+        cmds["gpu"] = ("cat /sys/devices/gpu.0/load 2>/dev/null", 4)
+    elif platform.is_raspberry_pi:
+        cmds["temp"] = ("vcgencmd measure_temp 2>/dev/null | awk -F'[=.]' '{print $2}'", 4)
+        cmds["freq"] = (
+            "vcgencmd measure_clock arm 2>/dev/null | awk -F= '{printf \"%.0f\", $2/1000000}'",
+            4,
+        )
+        cmds["throttle"] = ("vcgencmd get_throttled 2>/dev/null | awk -F= '{print $2}'", 4)
+
     r = parallel_cmds(cmds)
 
     disk = r.get("disk", "")
@@ -126,7 +143,14 @@ def _system_info() -> dict[str, str]:
     gpu = r.get("gpu", "")
     gpu_pct = int(gpu) // 10 if gpu and gpu.isdigit() else 0
 
+    freq = r.get("freq", "")
+    freq_mhz = int(freq) if freq and freq.isdigit() else 0
+
+    throttle = r.get("throttle", "")
+    throttled = bool(throttle and throttle != "0x0")
+
     return {
+        "platform": platform.name,
         "ram": ram,
         "ram_pct": ram_pct,
         "disk": disk,
@@ -136,23 +160,25 @@ def _system_info() -> dict[str, str]:
         "power": r.get("power", ""),
         "ip": r.get("ip", "n/a"),
         "docker": r.get("docker", "0"),
+        "freq_mhz": freq_mhz,
+        "throttled": throttled,
     }
 
 
 def project_list() -> list[str]:
-    from arasul_tui.core.state import DEFAULT_PROJECT_ROOT
+    from arasul_tui.core.state import default_project_root
 
     try:
-        return sorted([p.name for p in DEFAULT_PROJECT_ROOT.iterdir() if p.is_dir()], key=str.lower)
+        return sorted([p.name for p in default_project_root().iterdir() if p.is_dir()], key=str.lower)
     except OSError:
         return []
 
 
 def _project_detail(name: str) -> tuple[str, str, bool]:
     """Return (branch, commit_time, is_dirty) for a project."""
-    from arasul_tui.core.state import DEFAULT_PROJECT_ROOT
+    from arasul_tui.core.state import default_project_root
 
-    project = DEFAULT_PROJECT_ROOT / name
+    project = default_project_root() / name
     if not (project / ".git").exists():
         return ("", "", False)
     quoted = shlex.quote(str(project))
@@ -197,6 +223,7 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     info = _system_info()
     lines: list[str] = []
     dot_sep = f" {_DOT} "
+    plat = info.get("platform", "generic")
 
     # --- Greeting ---
     lines.append("")
@@ -207,6 +234,9 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     power = info.get("power", "")
     if power:
         status_parts.append(power)
+    elif plat == "raspberry_pi":
+        from arasul_tui.core.platform import get_platform
+        status_parts.append(get_platform().display_name)
     ip = info.get("ip", "")
     if ip and ip != "n/a":
         status_parts.append(ip)
@@ -262,6 +292,18 @@ def _build_full_dashboard(state: TuiState, content_w: int) -> list[str]:
     temp_pct = min(100, max(0, (temp - 20) * 100 // 80)) if temp else 0
     if temp:
         lines.append(_metric_row("Temp", _bar(temp_pct, bar_w), f"{temp}{_DEG}C"))
+
+    if plat == "jetson":
+        gpu_pct_val = info.get("gpu_pct", 0)
+        if gpu_pct_val:
+            lines.append(_metric_row("GPU", _bar(float(gpu_pct_val), bar_w), f"{gpu_pct_val}%"))
+    elif plat == "raspberry_pi":
+        freq = info.get("freq_mhz", 0)
+        if freq:
+            freq_pct = min(100, freq * 100 // 2500)
+            lines.append(_metric_row("Freq", _bar(float(freq_pct), bar_w), f"{freq} MHz"))
+        if info.get("throttled"):
+            lines.append(_box_row_closed(f"  [{WARNING}]Throttled[/{WARNING}]"))
 
     lines.append(_empty_row())
 

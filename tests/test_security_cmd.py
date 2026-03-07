@@ -103,22 +103,18 @@ def test_n8n_security_audit_with_env(tmp_path):
     """n8n audit checks encryption key from .env file."""
     from arasul_tui.core.security import _n8n_security_audit
 
-    env_file = tmp_path / ".env"
+    # Create n8n directory structure under tmp_path (simulated storage mount)
+    n8n_dir = tmp_path / "n8n"
+    n8n_dir.mkdir()
+    env_file = n8n_dir / ".env"
     env_file.write_text("N8N_ENCRYPTION_KEY=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\n")
     env_file.chmod(0o600)
 
+    mock_platform = type("Platform", (), {"storage": type("Storage", (), {"mount": tmp_path})()})()
     with (
-        patch("arasul_tui.core.security.Path") as MockPath,
+        patch("arasul_tui.core.platform.get_platform", return_value=mock_platform),
         patch("arasul_tui.core.security.run_cmd", return_value=""),
     ):
-        # First Path() call is for n8n_env, second for backup
-        def path_side_effect(path_str):
-            if path_str == "/mnt/nvme/n8n/.env":
-                return env_file
-            mock = type(env_file)(tmp_path / "nonexistent")
-            return mock
-
-        MockPath.side_effect = path_side_effect
         items = _n8n_security_audit()
 
     # Should have at least the encryption key check

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from arasul_tui.core.state import DEFAULT_PROJECT_ROOT, Screen, TuiState
+from arasul_tui.core.state import Screen, TuiState, default_project_root
 
 
 def test_default_state():
     state = TuiState()
     assert state.active_project is None
-    assert state.project_root == DEFAULT_PROJECT_ROOT
+    assert state.project_root == default_project_root()
     assert state.first_run is True
     assert state.screen == Screen.MAIN
 

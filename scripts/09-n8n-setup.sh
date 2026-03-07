@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 09 — n8n Workflow Automation Setup
-# Docker Compose stack: n8n + PostgreSQL on NVMe, Tailscale Funnel for webhooks
+# Docker Compose stack: n8n + PostgreSQL on storage, Tailscale Funnel for webhooks
 # =============================================================================
 set -euo pipefail
 
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
 
-N8N_DIR="${NVME_MOUNT}/n8n"
+N8N_DIR="${STORAGE_MOUNT}/n8n"
 N8N_ENV="${N8N_DIR}/.env"
 N8N_COMPOSE="${N8N_DIR}/docker-compose.yml"
 
@@ -25,8 +25,8 @@ if ! docker compose version &>/dev/null 2>&1; then
     exit 1
 fi
 
-if ! mountpoint -q "$NVME_MOUNT" 2>/dev/null; then
-    err "NVMe not mounted at ${NVME_MOUNT} — run step 4 first"
+if [[ -n "${STORAGE_DEVICE:-}" ]] && ! mountpoint -q "$STORAGE_MOUNT" 2>/dev/null; then
+    err "Storage not mounted at ${STORAGE_MOUNT} — run step 4 first"
     exit 1
 fi
 
@@ -148,7 +148,7 @@ done
 # ---------------------------------------------------------------------------
 # Backup: encryption key
 # ---------------------------------------------------------------------------
-BACKUP_DIR="${NVME_MOUNT}/backups/n8n"
+BACKUP_DIR="${STORAGE_MOUNT}/backups/n8n"
 mkdir -p "$BACKUP_DIR"
 chown "${REAL_USER}:${REAL_USER}" "$BACKUP_DIR"
 
@@ -167,18 +167,18 @@ fi
 # ---------------------------------------------------------------------------
 CRON_WORKFLOW="/etc/cron.daily/n8n-workflow-export"
 if [[ ! -f "$CRON_WORKFLOW" ]]; then
-    cat > "$CRON_WORKFLOW" << 'CRONEOF'
+    cat > "$CRON_WORKFLOW" << CRONEOF
 #!/bin/bash
 # Export all n8n workflows as JSON files for backup
-N8N_DIR="/mnt/nvme/n8n"
-EXPORT_DIR="${N8N_DIR}/workflows"
-COMPOSE="${N8N_DIR}/docker-compose.yml"
+N8N_DIR="${STORAGE_MOUNT}/n8n"
+EXPORT_DIR="\${N8N_DIR}/workflows"
+COMPOSE="\${N8N_DIR}/docker-compose.yml"
 
-if ! docker compose -f "$COMPOSE" ps --status running 2>/dev/null | grep -q n8n; then
+if ! docker compose -f "\$COMPOSE" ps --status running 2>/dev/null | grep -q n8n; then
     exit 0
 fi
 
-docker compose -f "$COMPOSE" exec -T n8n n8n export:workflow \
+docker compose -f "\$COMPOSE" exec -T n8n n8n export:workflow \
     --all --separate --output=/home/node/workflows/ 2>/dev/null || true
 CRONEOF
     chmod +x "$CRON_WORKFLOW"
@@ -192,30 +192,30 @@ fi
 # ---------------------------------------------------------------------------
 CRON_PGDUMP="/etc/cron.weekly/n8n-pg-backup"
 if [[ ! -f "$CRON_PGDUMP" ]]; then
-    cat > "$CRON_PGDUMP" << 'CRONEOF'
+    cat > "$CRON_PGDUMP" << CRONEOF
 #!/bin/bash
 # Weekly PostgreSQL dump for n8n
-N8N_DIR="/mnt/nvme/n8n"
-BACKUP_DIR="/mnt/nvme/backups/n8n"
-COMPOSE="${N8N_DIR}/docker-compose.yml"
+N8N_DIR="${STORAGE_MOUNT}/n8n"
+BACKUP_DIR="${STORAGE_MOUNT}/backups/n8n"
+COMPOSE="\${N8N_DIR}/docker-compose.yml"
 
-if ! docker compose -f "$COMPOSE" ps --status running 2>/dev/null | grep -q postgres; then
+if ! docker compose -f "\$COMPOSE" ps --status running 2>/dev/null | grep -q postgres; then
     exit 0
 fi
 
-mkdir -p "$BACKUP_DIR"
-DUMP_FILE="${BACKUP_DIR}/n8n-postgres-$(date +%Y%m%d).sql.gz"
+mkdir -p "\$BACKUP_DIR"
+DUMP_FILE="\${BACKUP_DIR}/n8n-postgres-\$(date +%Y%m%d).sql.gz"
 
 # Source n8n .env for DB credentials
 set -a
-source "${N8N_DIR}/.env" 2>/dev/null
+source "\${N8N_DIR}/.env" 2>/dev/null
 set +a
 
-docker compose -f "$COMPOSE" exec -T postgres \
-    pg_dump -U "${N8N_DB_USER:-n8n}" -d n8n 2>/dev/null | gzip > "$DUMP_FILE"
+docker compose -f "\$COMPOSE" exec -T postgres \
+    pg_dump -U "\${N8N_DB_USER:-n8n}" -d n8n 2>/dev/null | gzip > "\$DUMP_FILE"
 
 # Keep only last 4 weekly backups
-ls -t "${BACKUP_DIR}"/n8n-postgres-*.sql.gz 2>/dev/null | tail -n +5 | xargs -r rm --
+ls -t "\${BACKUP_DIR}"/n8n-postgres-*.sql.gz 2>/dev/null | tail -n +5 | xargs -r rm --
 CRONEOF
     chmod +x "$CRON_PGDUMP"
     log "Cron installed: weekly PostgreSQL backup"
@@ -258,7 +258,7 @@ log "  Compose:    ${N8N_COMPOSE}"
 log "  Env:        ${N8N_ENV}"
 echo ""
 info "Next steps:"
-info "  1. Open http://<jetson-ip>:5678 in your browser"
+info "  1. Open http://<device-ip>:5678 in your browser"
 info "  2. Create your owner account (first-time setup)"
 info "  3. Enable 2FA in Settings -> Personal"
 info "  4. Generate an API key in Settings -> API"

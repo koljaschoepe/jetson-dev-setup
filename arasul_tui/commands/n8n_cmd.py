@@ -24,8 +24,8 @@ from rich.panel import Panel
 
 from arasul_tui.core.n8n_client import (
     N8N_BASE_URL,
-    N8N_DIR,
     n8n_compose_cmd,
+    n8n_dir,
     n8n_get_api_key,
     n8n_health,
     n8n_is_installed,
@@ -69,12 +69,13 @@ _ICON_PENDING = f"[{DIM}]\u25cb[/{DIM}]"  # ○
 
 def _check_milestone(index: int) -> bool:
     """Check if a milestone is reached by polling filesystem/docker."""
+    d = n8n_dir()
     if index == 0:  # Directories
-        return Path("/mnt/nvme/n8n").is_dir()
+        return d.is_dir()
     if index == 1:  # Environment
-        return Path("/mnt/nvme/n8n/.env").is_file()
+        return (d / ".env").is_file()
     if index == 2:  # Compose file
-        return Path("/mnt/nvme/n8n/docker-compose.yml").is_file()
+        return (d / "docker-compose.yml").is_file()
     if index == 3:  # Images pulled (containers exist, even if not running yet)
         out = run_cmd(
             "docker images --format '{{.Repository}}' 2>/dev/null | grep -c n8n",
@@ -95,17 +96,19 @@ def _check_milestone(index: int) -> bool:
     return False
 
 
-_STEPS = [
-    ("Directories", "/mnt/nvme/n8n"),
-    ("Environment", "credentials + encryption key"),
-    ("Compose file", "n8n + PostgreSQL stack"),
-    ("Pulling images", "this may take a few minutes"),
-    ("Starting containers", "n8n + PostgreSQL"),
-    ("Health check", "waiting for API"),
-]
+def _steps() -> list[tuple[str, str]]:
+    return [
+        ("Directories", str(n8n_dir())),
+        ("Environment", "credentials + encryption key"),
+        ("Compose file", "n8n + PostgreSQL stack"),
+        ("Pulling images", "this may take a few minutes"),
+        ("Starting containers", "n8n + PostgreSQL"),
+        ("Health check", "waiting for API"),
+    ]
 
 
 def _build_install_panel(
+    steps: list[tuple[str, str]],
     step_states: list[bool],
     active_step: int,
     frame_idx: int,
@@ -116,10 +119,10 @@ def _build_install_panel(
     """Build the animated installation panel, matching print_styled_panel layout."""
     lines: list[str] = [""]
 
-    total = len(_STEPS)
+    total = len(steps)
     completed = sum(step_states)
 
-    for i, (label, detail) in enumerate(_STEPS):
+    for i, (label, detail) in enumerate(steps):
         if step_states[i]:
             icon = _ICON_DONE
             line = f"  {icon}  [bold]{label}[/bold]  [{DIM}]{detail}[/{DIM}]"
@@ -180,6 +183,7 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
     output = ""
     error: Exception | None = None
     script_done = False
+    steps = _steps()
 
     def _worker() -> None:
         nonlocal output, error, script_done
@@ -193,12 +197,12 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
     t = threading.Thread(target=_worker)
     t.start()
 
-    step_states = [False] * len(_STEPS)
+    step_states = [False] * len(steps)
     frame_idx = 0
     start_time = time.monotonic()
 
     with Live(
-        _build_install_panel(step_states, 0, 0, 0, False, False),
+        _build_install_panel(steps, step_states, 0, 0, 0, False, False),
         console=console,
         refresh_per_second=8,
         transient=False,
@@ -208,23 +212,23 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
             frame_idx += 1
 
             # Poll milestones
-            for i in range(len(_STEPS)):
+            for i in range(len(steps)):
                 if not step_states[i]:
                     with contextlib.suppress(Exception):
                         step_states[i] = _check_milestone(i)
 
             # Find active step (first incomplete)
             active = next(
-                (i for i in range(len(_STEPS)) if not step_states[i]),
-                len(_STEPS) - 1,
+                (i for i in range(len(steps)) if not step_states[i]),
+                len(steps) - 1,
             )
 
-            live.update(_build_install_panel(step_states, active, frame_idx, elapsed, False, False))
+            live.update(_build_install_panel(steps, step_states, active, frame_idx, elapsed, False, False))
             time.sleep(0.12)
 
         # Final state — check all milestones one last time
         elapsed = time.monotonic() - start_time
-        for i in range(len(_STEPS)):
+        for i in range(len(steps)):
             if not step_states[i]:
                 with contextlib.suppress(Exception):
                     step_states[i] = _check_milestone(i)
@@ -232,8 +236,9 @@ def _run_install_animated(setup_cmd: str) -> tuple[bool, str]:
         ok = error is None and n8n_is_running()
         live.update(
             _build_install_panel(
+                steps,
                 step_states,
-                len(_STEPS) - 1,
+                len(steps) - 1,
                 frame_idx,
                 elapsed,
                 done=ok,
@@ -298,8 +303,8 @@ def _show_status() -> CommandResult:
 
     # URLs + access info
     rows.append(("Web UI", f"[cyan]{N8N_BASE_URL}[/cyan]"))
-    rows.append(("SSH Tunnel", "[dim]ssh -L 5678:localhost:5678 jetson[/dim]"))
-    rows.append(("Data", f"[dim]{N8N_DIR}[/dim]"))
+    rows.append(("SSH Tunnel", "[dim]ssh -L 5678:localhost:5678 mydevice[/dim]"))
+    rows.append(("Data", f"[dim]{n8n_dir()}[/dim]"))
 
     print_styled_panel("n8n Automation", rows)
     return CommandResult(ok=True, style="silent")
@@ -325,9 +330,12 @@ def _smart_flow(state: TuiState) -> CommandResult:
             print_error(f"Setup script not found: {setup_script}")
             return CommandResult(ok=False, style="silent")
 
-        # The script needs NVME_MOUNT, REAL_USER, and SCRIPT_DIR
+        # The script needs STORAGE_MOUNT, REAL_USER, and SCRIPT_DIR
+        from arasul_tui.core.platform import get_platform
+
+        mount = get_platform().storage.mount
         real_user = os.environ.get("USER") or os.environ.get("LOGNAME", "")
-        env_vars = f'NVME_MOUNT=/mnt/nvme REAL_USER={real_user} SCRIPT_DIR="{repo_root}"'
+        env_vars = f'STORAGE_MOUNT={mount} NVME_MOUNT={mount} REAL_USER={real_user} SCRIPT_DIR="{repo_root}"'
 
         console.print()
         try:
@@ -365,7 +373,7 @@ def _smart_flow(state: TuiState) -> CommandResult:
     if not api_key:
         console.print()
         print_info("From your Mac:")
-        print_info("  [bold]ssh -L 5678:localhost:5678 jetson[/bold]")
+        print_info("  [bold]ssh -L 5678:localhost:5678 mydevice[/bold]")
         print_info(f"Then open [bold cyan]{N8N_BASE_URL}/settings/api[/bold cyan]")
         print_info("and create an API key.")
         return CommandResult(

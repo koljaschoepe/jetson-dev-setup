@@ -80,7 +80,9 @@ def security_audit() -> list[AuditItem]:
     items: list[AuditItem] = []
 
     # SSH key-only auth
-    sshd_conf = Path("/etc/ssh/sshd_config.d/99-jetson-hardened.conf")
+    sshd_conf = Path("/etc/ssh/sshd_config.d/99-arasul-hardened.conf")
+    if not sshd_conf.exists():
+        sshd_conf = Path("/etc/ssh/sshd_config.d/99-jetson-hardened.conf")
     if sshd_conf.exists():
         content = sshd_conf.read_text(encoding="utf-8", errors="replace")
         if "PasswordAuthentication no" in content:
@@ -144,8 +146,11 @@ def security_audit() -> list[AuditItem]:
 
 def _n8n_security_audit() -> list[AuditItem]:
     """n8n-specific security checks."""
+    from arasul_tui.core.platform import get_platform
+
     items: list[AuditItem] = []
-    n8n_env = Path("/mnt/nvme/n8n/.env")
+    mount = get_platform().storage.mount
+    n8n_env = mount / "n8n" / ".env"
 
     if not n8n_env.exists():
         return items  # n8n not installed, skip silently
@@ -176,7 +181,7 @@ def _n8n_security_audit() -> list[AuditItem]:
         pass
 
     # Encryption key backup
-    backup = Path("/mnt/nvme/backups/n8n/encryption-key.txt")
+    backup = mount / "backups" / "n8n" / "encryption-key.txt"
     if backup.exists():
         items.append(AuditItem("n8n key backup", str(backup), "ok"))
     else:

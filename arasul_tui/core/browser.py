@@ -6,16 +6,25 @@ from pathlib import Path
 
 from arasul_tui.core.claude_json import load_claude_json, save_claude_json
 
-NVME_BROWSER_CACHE = Path("/mnt/nvme/playwright-browsers")
 FALLBACK_BROWSER_CACHE = Path.home() / ".cache" / "ms-playwright"
+
+
+def _storage_browser_cache() -> Path:
+    from arasul_tui.core.platform import get_platform
+
+    p = get_platform()
+    if p.storage.is_external:
+        return p.storage.mount / "playwright-browsers"
+    return FALLBACK_BROWSER_CACHE
 
 
 def _browsers_path() -> Path:
     env = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
     if env:
         return Path(env)
-    if NVME_BROWSER_CACHE.exists():
-        return NVME_BROWSER_CACHE
+    cache = _storage_browser_cache()
+    if cache.exists():
+        return cache
     return FALLBACK_BROWSER_CACHE
 
 

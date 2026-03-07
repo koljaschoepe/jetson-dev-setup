@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 10 — Miniforge3 Setup (Lazy Install)
-# Installs Miniforge3 on NVMe for per-project conda environments.
+# Installs Miniforge3 on storage for per-project conda environments.
 # NOT called by setup.sh — only triggered on first template project creation.
 # =============================================================================
 set -euo pipefail
@@ -9,8 +9,8 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
 
-MINIFORGE_DIR="${NVME_MOUNT:-/mnt/nvme}/miniforge3"
-ENVS_DIR="${NVME_MOUNT:-/mnt/nvme}/envs"
+MINIFORGE_DIR="${STORAGE_MOUNT:-/mnt/data}/miniforge3"
+ENVS_DIR="${STORAGE_MOUNT:-/mnt/data}/envs"
 INSTALLER_URL="https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh"
 INSTALLER_PATH="/tmp/miniforge3-installer.sh"
 
@@ -23,9 +23,9 @@ if [[ -d "$MINIFORGE_DIR" ]] && [[ -x "$MINIFORGE_DIR/bin/conda" ]]; then
     exit 0
 fi
 
-NVME_BASE="${NVME_MOUNT:-/mnt/nvme}"
-if [[ ! -d "$NVME_BASE" ]] || ! mountpoint -q "$NVME_BASE" 2>/dev/null; then
-    err "NVMe not mounted at $NVME_BASE — required for Miniforge3"
+STORAGE_BASE="${STORAGE_MOUNT:-/mnt/data}"
+if [[ ! -d "$STORAGE_BASE" ]]; then
+    err "Storage not available at $STORAGE_BASE — required for Miniforge3"
     exit 1
 fi
 

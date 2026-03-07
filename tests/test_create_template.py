@@ -8,7 +8,25 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from arasul_tui.commands.project import cmd_create
+from arasul_tui.core.platform import GpuInfo, Platform, StorageInfo
 from arasul_tui.core.state import TuiState
+
+
+def _jetson_platform(mount: Path = Path("/mnt/nvme")) -> Platform:
+    return Platform(
+        name="jetson",
+        model="NVIDIA Jetson Orin Nano Super",
+        arch="aarch64",
+        ram_mb=8192,
+        gpu=GpuInfo(type="nvidia", has_cuda=True, cuda_version="12.6"),
+        storage=StorageInfo(type="nvme", mount=mount, device="/dev/nvme0n1"),
+        has_docker=True,
+        has_nvidia_runtime=True,
+    )
+
+
+def _mock_jetson():
+    return patch("arasul_tui.core.platform.get_platform", return_value=_jetson_platform())
 
 
 @pytest.fixture
@@ -34,7 +52,10 @@ def test_create_without_type_prompts(state: TuiState):
 
 def test_create_with_unknown_type(state: TuiState):
     """Unknown template type gives error."""
-    with patch("arasul_tui.commands.project.is_miniforge_installed", return_value=True):
+    with (
+        _mock_jetson(),
+        patch("arasul_tui.commands.project.is_miniforge_installed", return_value=True),
+    ):
         result = cmd_create(state, ["proj", "--type", "nonexistent"])
     assert result.ok is False
 
@@ -47,7 +68,10 @@ def test_create_with_template(mock_spinner, mock_env, mock_mf, state: TuiState, 
     # spinner_run should call the function and return its result
     mock_spinner.side_effect = lambda msg, fn: fn()
 
-    with patch("arasul_tui.commands.project.register_project"):
+    with (
+        _mock_jetson(),
+        patch("arasul_tui.commands.project.register_project"),
+    ):
         result = cmd_create(state, ["ml-proj", "--type", "python-gpu"])
 
     assert result.ok is True
@@ -68,7 +92,10 @@ def test_create_installs_miniforge_on_first_use(
     """Miniforge3 should be installed on first template use."""
     mock_spinner.side_effect = lambda msg, fn: fn()
 
-    with patch("arasul_tui.commands.project.register_project"):
+    with (
+        _mock_jetson(),
+        patch("arasul_tui.commands.project.register_project"),
+    ):
         result = cmd_create(state, ["first-proj", "--type", "python-gpu"])
 
     assert result.ok is True
@@ -89,12 +116,16 @@ def test_create_existing_project_with_type(state: TuiState):
     """Should fail if project directory already exists."""
     (state.project_root / "existing").mkdir()
 
-    with patch("arasul_tui.commands.project.is_miniforge_installed", return_value=True):
+    with (
+        _mock_jetson(),
+        patch("arasul_tui.commands.project.is_miniforge_installed", return_value=True),
+    ):
         result = cmd_create(state, ["existing", "--type", "python-gpu"])
     assert result.ok is False
 
 
 def test_create_invalid_name_with_type(state: TuiState):
     """Invalid project name should fail."""
-    result = cmd_create(state, ["../evil", "--type", "python-gpu"])
+    with _mock_jetson():
+        result = cmd_create(state, ["../evil", "--type", "python-gpu"])
     assert result.ok is False

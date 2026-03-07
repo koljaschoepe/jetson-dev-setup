@@ -6,7 +6,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-DEFAULT_PROJECT_ROOT = Path("/mnt/nvme/projects")
+
+def default_project_root() -> Path:
+    from arasul_tui.core.platform import get_platform
+
+    return get_platform().project_root
 
 
 class Screen(Enum):
@@ -18,7 +22,7 @@ class Screen(Enum):
 class TuiState:
     user: str = field(default_factory=getpass.getuser)
     active_project: Path | None = None
-    project_root: Path = DEFAULT_PROJECT_ROOT
+    project_root: Path = field(default_factory=default_project_root)
     first_run: bool = True
     screen: Screen = Screen.MAIN
     registry: Any = field(default=None, repr=False)
