@@ -367,8 +367,10 @@ def _smart_flow(state: TuiState) -> CommandResult:
     api_key = n8n_get_api_key()
     if not api_key:
         console.print()
-        print_info("From your Mac: [bold]ssh -L 5678:localhost:5678 jetson[/bold]")
-        print_info(f"Then open [bold cyan]{N8N_BASE_URL}/settings/api[/bold cyan] and create an API key.")
+        print_info("From your Mac:")
+        print_info("  [bold]ssh -L 5678:localhost:5678 jetson[/bold]")
+        print_info(f"Then open [bold cyan]{N8N_BASE_URL}/settings/api[/bold cyan]")
+        print_info("and create an API key.")
         return CommandResult(
             ok=True,
             style="silent",

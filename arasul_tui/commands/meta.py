@@ -63,7 +63,7 @@ def _cmd_detail(name: str, pad: str) -> bool:
 
     if spec.aliases:
         aliases = ", ".join(spec.aliases)
-        console.print(f"{pad}  [{DIM}]Aliases:[/{DIM}]  {aliases}", highlight=False)
+        console.print(f"{pad}  [{DIM}]Aliases:[/{DIM}]  {aliases}", highlight=False, soft_wrap=True)
 
     if spec.subcommands:
         console.print(f"{pad}  [{DIM}]Subcommands:[/{DIM}]", highlight=False)
@@ -129,15 +129,19 @@ def _help_project(pad: str) -> None:
     _box("In This Project", rows, pad)
     console.print()
 
-    # Other commands (compact)
+    # Other commands
     rows = [
-        f"[{PRIMARY}]status[/{PRIMARY}]  System  {_DOT}  [{PRIMARY}]health[/{PRIMARY}]  Diagnostics  {_DOT}  [{PRIMARY}]docker[/{PRIMARY}]  Containers",
-        f"[{PRIMARY}]repos[/{PRIMARY}]   All projects  {_DOT}  [{PRIMARY}]n8n[/{PRIMARY}]  Workflows  {_DOT}  [{PRIMARY}]help[/{PRIMARY}]  Full help",
+        f"[{PRIMARY}]status[/{PRIMARY}]    System overview",
+        f"[{PRIMARY}]health[/{PRIMARY}]    Diagnostics",
+        f"[{PRIMARY}]docker[/{PRIMARY}]    Containers",
+        f"[{PRIMARY}]repos[/{PRIMARY}]     All projects",
+        f"[{PRIMARY}]n8n[/{PRIMARY}]       Workflow automation",
+        f"[{PRIMARY}]help[/{PRIMARY}]      Full help",
     ]
     _box("Also Available", rows, pad)
     console.print()
 
-    console.print(f"{pad}[{DIM}]Just type what you need — everything works without slashes.[/{DIM}]", highlight=False)
+    console.print(f"{pad}[{DIM}]Just type what you need.[/{DIM}]", highlight=False)
     console.print()
 
 

@@ -64,11 +64,9 @@ def _wizard_step_token(state: TuiState, user_input: str) -> CommandResult:
     pad = content_pad()
     print_info("Now paste your account info (JSON or UUID).")
     console.print()
-    console.print(f"{pad}[dim]Run this on your Mac to get it:[/dim]", highlight=False)
-    console.print(
-        f"{pad}[cyan]cat ~/.claude.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin).get('oauthAccount',{{}})))\"[/cyan]",
-        highlight=False,
-    )
+    console.print(f"{pad}[dim]Run this on your Mac:[/dim]", highlight=False)
+    cmd = 'cat ~/.claude.json | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get(\'oauthAccount\',{})))"'
+    console.print(f"{pad}  [cyan]{cmd}[/cyan]", highlight=False, soft_wrap=True)
     console.print()
 
     return CommandResult(
@@ -201,13 +199,12 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
             print_info("Install first with [bold]browser install[/bold].")
             return CommandResult(ok=False, style="silent")
         pad = content_pad()
-        print_info("SSH tunnel method — follow these steps:")
+        print_info("SSH tunnel method:")
         console.print()
         console.print(f"{pad}  [bold]1.[/bold] Open a new terminal on your Mac", highlight=False)
-        console.print(
-            f"{pad}  [bold]2.[/bold] Run: [cyan]ssh -L 1455:localhost:1455 user@<jetson-ip>[/cyan]", highlight=False
-        )
-        console.print(f"{pad}  [bold]3.[/bold] Then here, run: [cyan]claude login[/cyan]", highlight=False)
+        console.print(f"{pad}  [bold]2.[/bold] Run:", highlight=False)
+        console.print(f"{pad}     [cyan]ssh -L 1455:localhost:1455 jetson[/cyan]", highlight=False)
+        console.print(f"{pad}  [bold]3.[/bold] Then here: [cyan]claude login[/cyan]", highlight=False)
         console.print()
         return CommandResult(ok=True, style="silent")
     if choice == "3":
@@ -215,10 +212,9 @@ def _auth_choice(state: TuiState, user_input: str) -> CommandResult:
         print_info("Manual SSH tunnel:")
         console.print()
         console.print(f"{pad}  [bold]1.[/bold] Open a new terminal on your Mac", highlight=False)
-        console.print(
-            f"{pad}  [bold]2.[/bold] Run: [cyan]ssh -L 1455:localhost:1455 user@<jetson-ip>[/cyan]", highlight=False
-        )
-        console.print(f"{pad}  [bold]3.[/bold] On the Jetson, run: [cyan]claude login[/cyan]", highlight=False)
+        console.print(f"{pad}  [bold]2.[/bold] Run:", highlight=False)
+        console.print(f"{pad}     [cyan]ssh -L 1455:localhost:1455 jetson[/cyan]", highlight=False)
+        console.print(f"{pad}  [bold]3.[/bold] On the Jetson: [cyan]claude login[/cyan]", highlight=False)
         console.print()
         return CommandResult(ok=True, style="silent")
     print_error("Please choose [bold]1[/bold], [bold]2[/bold], or [bold]3[/bold].")

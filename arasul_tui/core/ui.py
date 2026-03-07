@@ -470,7 +470,8 @@ def _print_project_screen(state: TuiState) -> None:
         hints.append(f"[{PRIMARY}]git[/{PRIMARY}] to set up version control")
     hints.append(f"[{PRIMARY}]back[/{PRIMARY}] to return")
     console.print()
-    console.print(f"{pad}  [{DIM}]{f'  {_DOT}  '.join(hints)}[/{DIM}]", highlight=False)
+    for hint in hints:
+        console.print(f"{pad}  [{DIM}]{hint}[/{DIM}]", highlight=False)
     console.print()
 
 
