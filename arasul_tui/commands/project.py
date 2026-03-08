@@ -492,6 +492,24 @@ def cmd_info(state: TuiState, args: list[str]) -> CommandResult:
         rows.append(("Disk", disk))
     rows.append(("Path", truncate(str(target), cw)))
 
+    # n8n-specific info
+    from arasul_tui.core.n8n_project import is_n8n_project_name
+
+    if is_n8n_project_name(target.name):
+        from arasul_tui.core.n8n_client import n8n_access_info, n8n_is_installed
+
+        if n8n_is_installed():
+            access = n8n_access_info()
+            if access.is_running:
+                rows.append(("n8n", "[green]running[/green]"))
+            else:
+                rows.append(("n8n", "[yellow]stopped[/yellow]"))
+            if access.tailscale_url:
+                rows.append(("Web UI", f"[cyan]{access.tailscale_url}[/cyan]"))
+            else:
+                rows.append(("Tunnel", f"[dim]{access.ssh_tunnel_cmd}[/dim]"))
+                rows.append(("Web UI", f"[cyan]{access.local_url}[/cyan] (after tunnel)"))
+
     print_styled_panel(target.name, rows)
     return CommandResult(ok=True, style="silent")
 

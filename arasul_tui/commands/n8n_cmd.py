@@ -302,8 +302,13 @@ def _show_status() -> CommandResult:
         rows.append(("MCP Server", "[dim]not set[/dim]"))
 
     # URLs + access info
+    from arasul_tui.core.n8n_client import n8n_access_info
+
+    access = n8n_access_info()
     rows.append(("Web UI", f"[cyan]{N8N_BASE_URL}[/cyan]"))
-    rows.append(("SSH Tunnel", "[dim]ssh -L 5678:localhost:5678 mydevice[/dim]"))
+    if access.tailscale_url:
+        rows.append(("Tailscale", f"[cyan]{access.tailscale_url}[/cyan]"))
+    rows.append(("SSH Tunnel", f"[dim]{access.ssh_tunnel_cmd}[/dim]"))
     rows.append(("Data", f"[dim]{n8n_dir()}[/dim]"))
 
     print_styled_panel("n8n Automation", rows)
@@ -372,8 +377,11 @@ def _smart_flow(state: TuiState) -> CommandResult:
     api_key = n8n_get_api_key()
     if not api_key:
         console.print()
+        import socket
+
+        hostname = socket.gethostname()
         print_info("From your Mac:")
-        print_info("  [bold]ssh -L 5678:localhost:5678 mydevice[/bold]")
+        print_info(f"  [bold]ssh -L 5678:localhost:5678 {hostname}[/bold]")
         print_info(f"Then open [bold cyan]{N8N_BASE_URL}/settings/api[/bold cyan]")
         print_info("and create an API key.")
         return CommandResult(

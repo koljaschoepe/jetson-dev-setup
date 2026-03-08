@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import socket
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -22,6 +24,88 @@ def _n8n_compose() -> Path:
     return n8n_dir() / "docker-compose.yml"
 N8N_BASE_URL = "http://localhost:5678"
 API_TIMEOUT = 5
+
+
+# ---------------------------------------------------------------------------
+# Cached status + access info (for project screen)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class N8nAccessInfo:
+    """Access information for reaching n8n web UI from a remote machine."""
+
+    is_running: bool
+    hostname: str
+    tailscale_url: str
+    ssh_tunnel_cmd: str
+    local_url: str
+
+
+def n8n_running_cached(ttl: float = 10.0) -> bool:
+    """Check if n8n is running, with result caching."""
+    from arasul_tui.core.cache import cached_cmd
+
+    out = cached_cmd(
+        "docker ps --filter name=n8n --filter status=running --format '{{.Names}}' 2>/dev/null",
+        timeout=5,
+        ttl=ttl,
+    )
+    return bool(out and "n8n" in out and not out.startswith("Error"))
+
+
+def _tailscale_hostname_cached() -> str:
+    """Get the Tailscale DNS name, cached for 60 seconds."""
+    from arasul_tui.core.cache import cached_cmd
+
+    raw = cached_cmd("tailscale status --json 2>/dev/null", timeout=5, ttl=60)
+    if not raw or raw.startswith("Error"):
+        return ""
+    try:
+        data = json.loads(raw)
+        dns = data.get("Self", {}).get("DNSName", "")
+        return dns.rstrip(".") if dns else ""
+    except (json.JSONDecodeError, KeyError):
+        return ""
+
+
+def n8n_access_info() -> N8nAccessInfo:
+    """Gather n8n access information with caching."""
+    from arasul_tui.core.cache import cached_cmd, parallel_cmds
+
+    # Run n8n + tailscale checks in parallel
+    cmds = {
+        "n8n_running": (
+            "docker ps --filter name=n8n --filter status=running --format '{{.Names}}' 2>/dev/null",
+            5,
+        ),
+        "ts_installed": ("command -v tailscale 2>/dev/null", 2),
+    }
+    r = parallel_cmds(cmds)
+
+    n8n_out = r.get("n8n_running", "")
+    is_running = bool(n8n_out and "n8n" in n8n_out and not n8n_out.startswith("Error"))
+
+    hostname = socket.gethostname()
+    ssh_cmd = f"ssh -L 5678:localhost:5678 {hostname}"
+
+    # Check Tailscale serve status (only if Tailscale is installed)
+    ts_url = ""
+    ts_installed = r.get("ts_installed", "")
+    if ts_installed and not ts_installed.startswith("Error"):
+        ts_serve = cached_cmd("tailscale serve status 2>/dev/null", timeout=5, ttl=30)
+        if ts_serve and "5678" in ts_serve:
+            ts_dns = _tailscale_hostname_cached()
+            if ts_dns:
+                ts_url = f"https://{ts_dns}"
+
+    return N8nAccessInfo(
+        is_running=is_running,
+        hostname=hostname,
+        tailscale_url=ts_url,
+        ssh_tunnel_cmd=ssh_cmd,
+        local_url=N8N_BASE_URL,
+    )
 
 
 def n8n_is_installed() -> bool:

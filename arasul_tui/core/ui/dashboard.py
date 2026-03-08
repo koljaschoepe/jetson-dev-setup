@@ -456,8 +456,50 @@ def _print_project_screen(state: TuiState) -> None:
         detail_line = f"  {_DOT}  ".join(detail_parts)
         console.print(f"{pad}  [{DIM}]{detail_line}[/{DIM}]", highlight=False)
 
+    # n8n project: show status + access info
+    from arasul_tui.core.n8n_project import is_n8n_project_name
+
+    n8n_active = False
+    access = None
+    if is_n8n_project_name(name):
+        from arasul_tui.core.n8n_client import n8n_access_info, n8n_is_installed
+
+        if n8n_is_installed():
+            n8n_active = True
+            access = n8n_access_info()
+            console.print()
+            if access.is_running:
+                status = f"[{SUCCESS}]n8n running[/{SUCCESS}]"
+            else:
+                status = (
+                    f"[{WARNING}]n8n stopped[/{WARNING}]  "
+                    f"[{DIM}]type [{PRIMARY}]n8n[/{PRIMARY}] to start[/{DIM}]"
+                )
+            console.print(f"{pad}  {status}", highlight=False)
+
+            if access.tailscale_url:
+                console.print(
+                    f"{pad}  [{DIM}]Open:[/{DIM}]  [{PRIMARY}]{access.tailscale_url}[/{PRIMARY}]",
+                    highlight=False,
+                )
+            else:
+                console.print(
+                    f"{pad}  [{DIM}]From Mac:[/{DIM}]  [bold]{access.ssh_tunnel_cmd}[/bold]",
+                    highlight=False,
+                )
+                console.print(
+                    f"{pad}  [{DIM}]Then:[/{DIM}]    [{PRIMARY}]{access.local_url}[/{PRIMARY}]",
+                    highlight=False,
+                )
+
     hints: list[str] = []
-    hints.append(f"[{PRIMARY}]claude[/{PRIMARY}] to start coding")
+    if n8n_active and access:
+        if access.is_running:
+            hints.append(f"[{PRIMARY}]n8n[/{PRIMARY}] for full status")
+        else:
+            hints.append(f"[{PRIMARY}]n8n[/{PRIMARY}] to start n8n")
+    else:
+        hints.append(f"[{PRIMARY}]claude[/{PRIMARY}] to start coding")
     if gi and gi.is_dirty:
         hints.append(f"[{PRIMARY}]push[/{PRIMARY}] to save changes")
     elif gi:
