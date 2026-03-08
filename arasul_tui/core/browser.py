@@ -185,9 +185,10 @@ def configure_mcp() -> tuple[bool, str]:
 
     data["mcpServers"]["playwright"] = {
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@latest", "--headless"],
+        "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium", "--headless"],
         "env": {
             "PLAYWRIGHT_BROWSERS_PATH": str(_browsers_path()),
+            "PLAYWRIGHT_MCP_NO_SANDBOX": "true",
         },
     }
 

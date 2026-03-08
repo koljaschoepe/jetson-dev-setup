@@ -122,11 +122,17 @@ def _create_finish(state: TuiState, user_input: str) -> CommandResult:
     from arasul_tui.core.n8n_project import is_n8n_project_name, scaffold_n8n_project
 
     if is_n8n_project_name(name):
+        from arasul_tui.core.scaffold import scaffold_defaults
+
+        scaffold_defaults(target, name, skip_claude_md=True)
         scaffold_n8n_project(target)
         print_success(f"n8n project created: [bold]{name}[/bold]")
         print_info("CLAUDE.md and guardrails configured.")
         print_info("Subdirs: [dim]workflows/[/dim], [dim]docs/[/dim]")
     else:
+        from arasul_tui.core.scaffold import scaffold_defaults
+
+        scaffold_defaults(target, name)
         print_success(f"Project created: [bold]{name}[/bold]")
 
     state.active_project = target
@@ -175,13 +181,17 @@ def _create_template(state: TuiState, name: str, template_name: str) -> CommandR
     # Step 2: Create project directory
     target.mkdir(parents=True, exist_ok=False)
 
-    # Step 3: Scaffold template files
+    # Step 3: Scaffold template files + .claude/ defaults
     print_info(f"Template: [bold]{template.label}[/bold]")
     ok, msg = scaffold_project(target, name, template)
     if not ok:
         print_error(f"Scaffold failed: {msg}")
         shutil.rmtree(target, ignore_errors=True)
         return CommandResult(ok=False, style="silent")
+
+    from arasul_tui.core.scaffold import scaffold_defaults
+
+    scaffold_defaults(target, name, skip_claude_md=True)
 
     # Step 4: Create conda environment
     def _do_env() -> tuple[bool, str]:
@@ -329,6 +339,12 @@ def _clone_finish(state: TuiState, user_input: str) -> CommandResult:
         return CommandResult(ok=False, style="silent")
 
     register_project(name=repo_name, path=target, provider_default="claude")
+
+    # Add missing .claude/ defaults (merge strategy: never overwrite existing files)
+    from arasul_tui.core.scaffold import scaffold_clone_defaults
+
+    scaffold_clone_defaults(target, repo_name)
+
     state.active_project = target
     print_success(f"Repo cloned: [bold]{repo_name}[/bold]")
     print_info(f"Path: [dim]{target}[/dim]")
